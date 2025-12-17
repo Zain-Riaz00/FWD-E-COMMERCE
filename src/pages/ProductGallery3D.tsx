@@ -1,6 +1,5 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useMemo, useRef, useState, useEffect } from 'react'
-import { Html } from '@react-three/drei'
 import { motion, AnimatePresence } from 'framer-motion'
 import * as THREE from 'three'
 import { Product3DImage } from '@/components/products/Product3DImage'

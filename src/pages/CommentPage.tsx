@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { User, Trash2, ThumbsUp, MessageCircle } from 'lucide-react';
 import type { Review, Comment } from '@/types/product';
-import { appendGlobalNotification } from '@/utils/notificationFeed';
 import VerifiedBadge from '@/components/ui/VerifiedBadge';
 
 // Helper to get user profile name from localStorage
@@ -53,24 +52,6 @@ export default function CommentPage() {
   // Inline toasts for quick feedback + global feed storage
   const [inlineNotifications, setInlineNotifications] = useState<ReplyNotification[]>([]);
 
-  const pushNotification = (payload: Omit<ReplyNotification, 'id' | 'createdAt'>) => {
-    const notif: ReplyNotification = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      createdAt: new Date().toISOString(),
-      ...payload,
-    };
-    setInlineNotifications(prev => [notif, ...prev].slice(0, 3));
-    appendGlobalNotification({
-      id: notif.id,
-      type: 'reply',
-      title: `@${notif.replier} replied${notif.to ? ` to ${notif.to}` : ''}`,
-      message: notif.comment,
-      timestamp: notif.createdAt,
-      meta: notif.variant ? `${notif.product} / ${notif.variant}` : notif.product,
-      status: 'new',
-    });
-  };
-  
   // Tabs: 'all' or 'mine'
   const [tab, setTab] = useState<'all' | 'mine'>('all');
   // Star filter: 0 = all, 1-5 = filter by rating

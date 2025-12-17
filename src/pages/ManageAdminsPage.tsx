@@ -110,7 +110,7 @@ export default function ManageAdminsPage() {
       })
 
       if (response.ok) {
-        const created = await response.json()
+        await response.json()
         setNewAdmin({ email: '', password: '', name: '', role: 'admin' })
         setIsAddingAdmin(false)
         setAlert({ 

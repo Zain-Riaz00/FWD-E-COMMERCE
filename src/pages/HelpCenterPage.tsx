@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 export default function HelpCenterPage() {
   const navigate = useNavigate()
-  const [isAdmin, setIsAdmin] = useState(() => {
+  const [isAdmin] = useState(() => {
     return localStorage.getItem('isAdmin') === 'true'
   })
 
