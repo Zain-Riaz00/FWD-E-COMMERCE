@@ -1,0 +1,508 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global base styles */
+@layer base {
+  html, body, #root {
+    @apply h-full;
+  }
+  body {
+    @apply font-sans antialiased;
+    background: #08080C; /* Cyberpunk Dark background */
+    color: #e8fefe;
+  }
+  
+  /* Light theme */
+  .light body {
+    background: #ffffff;
+    color: #1e293b;
+  }
+  
+  /* Default rounded corners and subtle shadow for common UI elements */
+  button, input, select, textarea, img, .card, .surface {
+    @apply rounded-lg shadow-sm;
+  }
+  
+  /* Smooth hover transitions for all buttons */
+  button {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  button:hover {
+    transform: translateY(-2px);
+  }
+  
+  /* Glassmorphic 3D card effect */
+  .card-3d {
+    transform-style: preserve-3d;
+    transition: transform 0.6s cubic-bezier(0.23, 1, 0.32, 1), box-shadow 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+    -webkit-backdrop-filter: blur(8px); /* Reduced blur */
+    backdrop-filter: blur(8px); /* Reduced blur */
+    background: rgba(255, 255, 255, 0.2); /* Reduced opacity */
+  }
+  
+  .card-3d:hover {
+    transform: translateY(-8px) rotateX(2deg) rotateY(-2deg);
+  }
+  ::selection {
+    background: rgba(0, 255, 255, 0.35);
+    color: #001010;
+  }
+  
+  .light ::selection {
+    background: rgba(99, 102, 241, 0.25);
+    color: #0f172a;
+  }
+  
+  /* Light mode text colors - dark on light */
+  .light .text-cyan-100,
+  .light .text-cyan-200 {
+    color: #1e40af !important; /* blue-800 - vibrant blue instead of cyan */
+  }
+  
+  .light .text-cyan-400 {
+    color: #2563eb !important; /* blue-600 */
+  }
+  
+  .light .text-cyan-200\/70,
+  .light .text-cyan-400\/60,
+  .light .text-cyan-400\/70 {
+    color: #3b82f6 !important; /* blue-500 */
+  }
+  
+  .light .text-white {
+    color: #0f172a !important; /* dark text on white bg */
+  }
+  
+  .light .text-gray-400,
+  .light .text-gray-300 {
+    color: #475569 !important; /* slate-600 */
+  }
+  
+  /* Icons visibility on white */
+  .light svg,
+  .light .text-cyan-300,
+  .light .text-cyan-500 {
+    color: #334155 !important; /* slate-700 for icons */
+  }
+  
+  /* Hero and feature text in light mode */
+  .light .text-zinc-400,
+  .light .text-zinc-500 {
+    color: #0f172a !important; /* black for descriptions */
+  }
+  
+  .light .text-cyan-300\/60 {
+    color: #1e40af !important; /* blue-800 instead of cyan */
+  }
+  
+  .light .text-yellow-300,
+  .light .text-yellow-400 {
+    color: #eab308 !important; /* yellow-500 - vibrant for stars */
+  }
+  
+  /* Light mode borders and rings - visible on white */
+  .light .border-cyan-400,
+  .light .ring-cyan-400 {
+    border-color: #60a5fa !important; /* blue-400 - more visible */
+    --tw-ring-color: rgb(96 165 250) !important;
+  }
+  
+  /* Glassmorphic filter sidebar for light theme */
+  .light .filter-sidebar {
+    background: rgba(255, 255, 255, 0.75) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    backdrop-filter: blur(20px) !important;
+    border: 1px solid rgba(96, 165, 250, 0.3) !important;
+    box-shadow: 0 8px 32px rgba(37, 99, 235, 0.15), inset 0 0 0 1px rgba(255, 255, 255, 0.5) !important;
+  }
+  
+  .light .border-cyan-400\/30,
+  .light .ring-cyan-400\/40,
+  .light .border-cyan-400\/10 {
+    border-color: rgba(96, 165, 250, 0.6) !important;
+    --tw-ring-color: rgba(96, 165, 250, 0.6) !important;
+  }
+  
+  /* Light mode backgrounds */
+  .light .bg-cyan-500,
+  .light .bg-cyan-600 {
+    background-color: #2563eb !important; /* blue-600 - vibrant and visible */
+    color: white !important;
+  }
+  
+  .light .bg-blue-500,
+  .light .bg-blue-600 {
+    background-color: #4f46e5 !important; /* indigo-600 */
+    color: white !important;
+  }
+  
+  .light .bg-red-500,
+  .light .bg-red-600 {
+    background-color: #dc2626 !important; /* red-600 */
+    color: white !important;
+  }
+  
+  .light .bg-green-500,
+  .light .bg-green-600 {
+    background-color: #16a34a !important; /* green-600 */
+    color: white !important;
+  }
+  
+  .light .from-cyan-500,
+  .light .from-cyan-500\/20,
+  .light .from-cyan-500\/30 {
+    --tw-gradient-from: rgb(37 99 235 / 0.25) !important; /* blue-600 - darker, more visible */
+  }
+  
+  .light .to-blue-500,
+  .light .to-blue-500\/20,
+  .light .to-blue-500\/30 {
+    --tw-gradient-to: rgb(79 70 229 / 0.25) !important; /* indigo-600 - darker */
+  }
+  
+  .light .bg-black\/40,
+  .light .bg-black\/50 {
+    background-color: rgba(255, 255, 255, 0.65) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+  }
+  
+  .light .bg-gray-900,
+  .light .bg-gray-800 {
+    background-color: rgba(255, 255, 255, 0.7) !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+  }
+  
+  .light .bg-gray-700 {
+    background-color: rgba(248, 250, 252, 0.8) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+  }
+  
+  /* Product cards glassmorphic */
+  .light .from-\[\#0a0e1a\],
+  .light .bg-\[\#0a0e1a\],
+  .light .from-\[\#0a0e1a\]\/70,
+  .light .bg-gradient-to-br {
+    background: rgba(255, 255, 255, 0.7) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+  }
+  
+  .light .to-\[\#020304\],
+  .light .bg-\[\#020304\],
+  .light .to-\[\#020304\]\/70 {
+    background: rgba(255, 255, 255, 0.5) !important;
+  }
+  
+  .light .bg-neutral-900,
+  .light .bg-black\/40 {
+    background: rgba(248, 250, 252, 0.85) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+  }
+  
+  /* Light mode shadows */
+  .light .shadow-cyan-500\/20,
+  .light .shadow-cyan-500\/10 {
+    --tw-shadow-color: rgb(37 99 235 / 0.25) !important;
+  }
+  
+  /* Light mode hover states */
+  .light .hover\:bg-cyan-600:hover {
+    background-color: #1d4ed8 !important; /* blue-700 */
+  }
+  
+  .light .hover\:text-cyan-100:hover,
+  .light .hover\:text-cyan-300:hover {
+    color: #1e293b !important;
+  }
+  
+  .light .hover\:ring-cyan-400\/60:hover {
+    --tw-ring-color: rgba(96, 165, 250, 0.7) !important;
+  }
+  
+  /* Product prices and feature text */
+  .light .text-cyan-300 {
+    color: #1e40af !important; /* blue-800 for prices */
+  }
+  
+  .light .text-cyan-200\/80,
+  .light .text-cyan-200\/70,
+  .light .text-cyan-200\/60 {
+    color: #0f172a !important; /* black for descriptions */
+  }
+  
+  .light .text-cyan-100\/90 {
+    color: #1e293b !important; /* slate-800 for secondary text */
+  }
+}
+
+/* Utilities */
+@layer utilities {
+  :root {
+    /* Colors stored as HSL components for easy opacity control */
+    --color-bg: 240 8% 4%;
+    --color-bg-alt: 240 10% 8%;
+    --color-bg-highlight: 190 100% 50%;
+    --color-surface: 240 15% 12%;
+    --color-border: 190 100% 50%;
+    --color-fg: 180 100% 97%;
+    --color-fg-muted: 180 30% 60%;
+    --shadow-subtle: 0 0 0 1px hsla(var(--color-border)/0.4), 0 2px 4px -2px hsla(0 0% 0% / 0.4);
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --ease-spring: cubic-bezier(.21,1.02,.73,1);
+  }
+  
+  .light:root {
+    --color-bg: 45 100% 96%;
+    --color-bg-alt: 48 100% 88%;
+    --color-bg-highlight: 24 95% 53%;
+    --color-surface: 48 100% 96%;
+    --color-border: 24 95% 53%;
+    --color-fg: 24 10% 10%;
+    --color-fg-muted: 30 30% 40%;
+  }
+
+  .focus-ring {
+    @apply outline-none ring-2 ring-indigo-500/70 ring-offset-2 ring-offset-transparent;
+  }
+
+  .container-prose {
+    @apply prose prose-invert prose-zinc max-w-none;
+  }
+  .glow-surface {
+    position: relative;
+    background: radial-gradient(160px 160px at var(--glow-x, -100px) var(--glow-y, -100px),
+      rgba(0, 255, 209, var(--glow-opacity, 0.12)), transparent 55%);
+    transition: background 120ms ease-out;
+  }
+  
+  .light .glow-surface {
+    background: radial-gradient(160px 160px at var(--glow-x, -100px) var(--glow-y, -100px),
+      rgba(37, 99, 235, var(--glow-opacity, 0.15)), transparent 55%);
+  }
+  
+  .glow-btn {
+    --glow-color: rgba(0, 255, 255, 0.6);
+    box-shadow: 0 0 20px var(--glow-color), 0 0 40px var(--glow-color), 0 0 60px var(--glow-color);
+  }
+  
+  .light .glow-btn {
+    --glow-color: rgba(37, 99, 235, 0.5);
+    box-shadow: 0 0 15px var(--glow-color), 0 0 30px var(--glow-color), 0 0 45px var(--glow-color);
+  }
+  /* Pulse animation for neon glows */
+  @keyframes pulseOpacity {
+    0%, 100% { opacity: 0.75; }
+    50% { opacity: 1; }
+  }
+  .pulse-glow { opacity: 1; }
+  .group:hover .pulse-glow {
+    animation: pulseOpacity 1.6s ease-in-out infinite;
+  }
+  /* Neon text glow utility - reduced intensity */
+  .neon-glow-text {
+    color: #00FFFF;
+    text-shadow: 0 0 2px #00FFFF, 0 0 6px #00FFD1;
+  }
+  .neon-glow-text:hover {
+    text-shadow: 0 0 4px #00FFFF, 0 0 10px #00FFD1;
+  }
+  
+  .light .neon-glow-text {
+    color: #2563eb;
+    text-shadow: 0 0 2px #2563eb, 0 0 6px #4f46e5;
+  }
+  .light .neon-glow-text:hover {
+    text-shadow: 0 0 4px #2563eb, 0 0 10px #4f46e5;
+  }
+  /* Neon border glow utility */
+  .neon-border-glow {
+    position: relative;
+  }
+  .neon-border-glow::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: 1px solid #00FFFF;
+    box-shadow: 0 0 6px #00FFFF, 0 0 14px #00FFD1, inset 0 0 6px #00FFFF;
+    pointer-events: none;
+    border-radius: inherit;
+  }
+  /* Glassmorphic navbar with neon bottom border */
+  .glass-navbar {
+    position: fixed;
+    inset: 0 auto auto 0;
+    right: 0;
+    background: rgba(8, 8, 12, 0.6);
+    -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(0, 255, 255, 0.25);
+  }
+  
+  .light .glass-navbar {
+    background: rgba(255, 255, 255, 0.8);
+    border-bottom: 1px solid rgba(96, 165, 250, 0.5);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  }
+  
+  .glass-navbar::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(90deg, #00FFFF, #00FFD1);
+    box-shadow: 0 0 8px #00FFFF, 0 0 18px #00FFD1;
+    opacity: 0.6;
+    transition: opacity 200ms ease;
+  }
+  
+  .light .glass-navbar::after {
+    background: linear-gradient(90deg, #2563eb, #4f46e5);
+    box-shadow: 0 0 8px #2563eb, 0 0 18px #4f46e5;
+  }
+  .glass-navbar:hover::after {
+    opacity: 1;
+  }
+  /* Neon input text glow */
+  .neon-input {
+    color: #e8fefe;
+    text-shadow: 0 0 6px rgba(0, 255, 209, 0.8);
+  }
+  .neon-input::placeholder {
+    color: rgba(232, 254, 254, 0.5);
+    text-shadow: none;
+  }
+  
+  .light .neon-input {
+    color: #0f172a;
+    text-shadow: none;
+  }
+  .light .neon-input::placeholder {
+    color: rgba(71, 85, 105, 0.6);
+    text-shadow: none;
+  }
+  /* Hover-only neon text glow for links */
+  .neon-hover-text {
+    transition: text-shadow 200ms ease, color 200ms ease;
+  }
+  .neon-hover-text:hover {
+    text-shadow: 0 0 6px #00FFFF, 0 0 14px #00FFD1, 0 0 24px #00FFFF;
+    color: #e8fefe;
+  }
+  
+  .light .neon-hover-text:hover {
+    text-shadow: 0 0 6px #2563eb, 0 0 14px #4f46e5, 0 0 24px #2563eb;
+    color: #1d4ed8;
+  }
+  /* Flickering neon divider */
+  @keyframes flicker {
+    0%, 100% { opacity: 0.9; filter: brightness(1); }
+    10% { opacity: 0.4; filter: brightness(0.7); }
+    20% { opacity: 0.95; filter: brightness(1.05); }
+    30% { opacity: 0.3; filter: brightness(0.6); }
+    40% { opacity: 0.85; filter: brightness(1); }
+    50% { opacity: 0.5; filter: brightness(0.8); }
+    60% { opacity: 0.92; filter: brightness(1.05); }
+    70% { opacity: 0.35; filter: brightness(0.7); }
+    80% { opacity: 0.88; filter: brightness(1); }
+    90% { opacity: 0.6; filter: brightness(0.85); }
+  }
+  .flicker-divider {
+    position: relative;
+    height: 2px;
+    width: 100%;
+    background: linear-gradient(90deg,#00FFFF,#00FFD1,#FF5733,#00FFFF);
+    background-size: 300% 100%;
+    animation: flicker 4s linear infinite;
+    box-shadow: 0 0 8px #00FFFF, 0 0 20px #00FFD1;
+  }
+  
+  .light .flicker-divider {
+    background: linear-gradient(90deg,#2563eb,#4f46e5,#60a5fa,#2563eb);
+    box-shadow: 0 0 8px #2563eb, 0 0 20px #4f46e5;
+  }
+
+  /* Neon blinking text for totals */
+  @keyframes neonBlink {
+    0%, 100% {
+      opacity: 1;
+      text-shadow: 0 0 6px #00FFFF, 0 0 14px #00FFD1, 0 0 26px #00FFFF;
+    }
+    50% {
+      opacity: 0.92;
+      text-shadow: 0 0 3px #00FFFF, 0 0 8px #00FFD1, 0 0 16px #00FFFF;
+    }
+  }
+  .neon-blink {
+    animation: neonBlink 2.4s ease-in-out infinite;
+  }
+  .gradient-border {
+    position: relative;
+  }
+  .gradient-border::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px; /* border thickness */
+    border-radius: inherit;
+    background: linear-gradient(135deg, hsl(var(--color-bg-highlight)/0.9), hsl(var(--color-border)/0.4));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* Zoom Slider Styling */
+  input[type="range"] {
+    border-radius: 999px;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #00FFFF;
+    cursor: pointer;
+    box-shadow: 0 0 6px #00FFFF, 0 0 12px #00FFD1;
+    transition: all 0.2s;
+  }
+  
+  .light input[type="range"]::-webkit-slider-thumb {
+    background: #f97316;
+    box-shadow: 0 0 6px #f97316, 0 0 12px #fb923c;
+  }
+  
+  input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.3);
+    box-shadow: 0 0 10px #00FFFF, 0 0 20px #00FFD1;
+  }
+  
+  .light input[type="range"]::-webkit-slider-thumb:hover {
+    box-shadow: 0 0 10px #f97316, 0 0 20px #fb923c;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #00FFFF;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 0 6px #00FFFF, 0 0 12px #00FFD1;
+    transition: all 0.2s;
+  }
+  input[type="range"]::-moz-range-thumb:hover {
+    transform: scale(1.3);
+    box-shadow: 0 0 10px #00FFFF, 0 0 20px #00FFD1;
+  }
+}
