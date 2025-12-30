@@ -1,22 +1,37 @@
 services:
+  # Backend API Service
   - type: web
-    name: ecom-fwd-backend
+    name: ecom-fwd-api
     runtime: node
     region: oregon
     plan: free
-    buildCommand: npm install && npm run build:server
-    startCommand: npm run server:prod
+    buildCommand: npm install
+    startCommand: node server/instant-server.cjs
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 5000
       - key: MONGODB_URI
         sync: false
       - key: JWT_SECRET
-        sync: false
+        generateValue: true
       - key: EMAIL_USER
         sync: false
       - key: EMAIL_PASSWORD
         sync: false
     healthCheckPath: /api/health
+
+  # Frontend Static Site
+  - type: web
+    name: ecom-fwd-frontend
+    runtime: static
+    region: oregon
+    plan: free
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_API_URL
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
