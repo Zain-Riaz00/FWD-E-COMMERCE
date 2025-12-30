@@ -12,7 +12,7 @@ function getAverageRating(reviews: Review[]): number {
   if (!reviews.length) return 0;
   return reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
 }
-import { ChevronLeft, ChevronRight, ShoppingCart, ArrowLeft, Edit2, Palette, Package } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ShoppingCart, ArrowLeft, Palette, Package } from 'lucide-react'
 import EditProductModal from '@/components/admin/EditProductModal'
 import ColorManagementModal from '@/components/admin/ColorManagementModal'
 import GlassShatterEffect from '@/components/effects/GlassShatterEffect'
@@ -196,7 +196,8 @@ export default function ProductDetailImmersive() {
   const [ringRotation, setRingRotation] = useState(0) // Track smooth rotation
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isColorModalOpen, setIsColorModalOpen] = useState(false)
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+  const [editingProduct, _setEditingProduct] = useState<Product | null>(null)
+  void _setEditingProduct; // Reserved for future use
   const [colorVariants, setColorVariants] = useState<ColorVariant[]>([])
   const [productData, setProductData] = useState<Product | null>(null)
   const [showShatterEffect, setShowShatterEffect] = useState(false)
@@ -445,7 +446,7 @@ export default function ProductDetailImmersive() {
           } else {
             // Create new grandchild
             const created = await productAPI.create(grandchildData)
-            console.log('Created grandchild:', colorVariant.name, 'with parentId:', created.parentId)
+            console.log('Created grandchild:', colorVariant.name, 'with parentId:', created?.parentId)
           }
         }
         
@@ -784,7 +785,7 @@ export default function ProductDetailImmersive() {
                     handleAddToCart()
                     navigate('/checkout', {
                       state: {
-                        product: currentVariant,
+                        product: productData,
                         quantity: 1
                       }
                     })

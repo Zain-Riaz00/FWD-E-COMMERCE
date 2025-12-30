@@ -26,13 +26,17 @@ export default function HeroSlider({ slides }: HeroSliderProps) {
   
   const currentSlide = slides[currentIndex]
   
-  function handleNext() {
+  function _handleNext() {
     setCurrentIndex((prev) => (prev + 1) % slides.length)
   }
   
-  function handlePrev() {
+  function _handlePrev() {
     setCurrentIndex((prev) => (prev - 1 + slides.length) % slides.length)
   }
+  
+  // Expose handlers for potential future use
+  void _handleNext;
+  void _handlePrev;
   
   function handleSlideClick() {
     if (currentSlide.linkTo) {

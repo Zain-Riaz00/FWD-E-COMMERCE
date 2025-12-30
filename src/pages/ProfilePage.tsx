@@ -47,7 +47,7 @@ export default function ProfilePage() {
   }
   
   const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setProfileData(prev => ({
+    setProfileData((prev: typeof profileData) => ({
       ...prev,
       [e.target.name]: e.target.value
     }))

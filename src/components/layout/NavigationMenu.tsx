@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Home, Package, ShoppingCart, User, LogOut, Bell } from 'lucide-react'
-import { isGuestUser, getUserStatus } from '@/utils/guestUser'
+import { getUserStatus } from '@/utils/guestUser'
 
 export default function NavigationMenu({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const location = useLocation()
