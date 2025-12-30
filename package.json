@@ -9,7 +9,7 @@
     "build:server": "tsc --project tsconfig.server.json",
     "lint": "eslint .",
     "preview": "vite preview",
-    "server": "tsx watch server/index.ts",
+    "server": "node server/instant-server.cjs",
     "server:prod": "node server/dist/index.js",
     "dev:full": "concurrently \"npm run dev\" \"npm run server\"",
     "seed": "tsx server/seed.ts"
@@ -51,6 +51,7 @@
     "@vitejs/plugin-react": "^5.1.0",
     "autoprefixer": "^10.4.22",
     "concurrently": "^9.2.1",
+    "docx": "^9.5.1",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",

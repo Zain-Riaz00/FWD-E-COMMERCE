@@ -1,17 +1,19 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Home, Package, ShoppingCart, User, LogOut, Bell } from 'lucide-react'
+import { isGuestUser, getUserStatus } from '@/utils/guestUser'
 
 export default function NavigationMenu({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const location = useLocation()
   const navigate = useNavigate()
+  const userStatus = getUserStatus()
 
   const menuItems = [
     { path: '/', label: 'Home', icon: Home },
     { path: '/products', label: 'Products', icon: Package },
     { path: '/cart', label: 'Cart', icon: ShoppingCart },
     { path: '/notifications', label: 'Notifications', icon: Bell },
-    { path: '/profile', label: 'Profile', icon: User },
+    ...(!userStatus.isGuest ? [{ path: '/profile', label: 'Profile', icon: User }] : []),
   ]
 
   const isActive = (path: string) => {
@@ -91,19 +93,32 @@ export default function NavigationMenu({ isOpen, onClose }: { isOpen: boolean; o
                   })}
                 </nav>
 
-                {/* Footer with Sign Out */}
+                {/* Footer with Sign Out or Login */}
                 <div className="mt-auto space-y-3">
-                  <button
-                    onClick={() => {
-                      console.log('Signing out...')
-                      onClose()
-                      navigate('/auth')
-                    }}
-                    className="w-full flex items-center gap-3 rounded-lg px-4 py-3 text-red-400 hover:bg-red-500/10 hover:ring-1 hover:ring-red-400/20 transition-all"
-                  >
-                    <LogOut className="h-5 w-5" />
-                    <span className="font-medium">Sign Out</span>
-                  </button>
+                  {userStatus.isGuest ? (
+                    <button
+                      onClick={() => {
+                        onClose()
+                        navigate('/auth')
+                      }}
+                      className="w-full flex items-center gap-3 rounded-lg px-4 py-3 text-cyan-400 hover:bg-cyan-500/10 hover:ring-1 hover:ring-cyan-400/20 transition-all"
+                    >
+                      <User className="h-5 w-5" />
+                      <span className="font-medium">Login / Signup</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        console.log('Signing out...')
+                        onClose()
+                        navigate('/auth')
+                      }}
+                      className="w-full flex items-center gap-3 rounded-lg px-4 py-3 text-red-400 hover:bg-red-500/10 hover:ring-1 hover:ring-red-400/20 transition-all"
+                    >
+                      <LogOut className="h-5 w-5" />
+                      <span className="font-medium">Sign Out</span>
+                    </button>
+                  )}
                   <div className="pt-3 border-t border-cyan-400/10">
                     <p className="text-xs text-cyan-200/50 text-center">
                       E-Commerce Store

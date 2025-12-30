@@ -150,7 +150,7 @@ export default function CartPage() {
               <p className="neon-blink mt-1 text-3xl font-extrabold text-cyan-200">Rs. {totalPrice.toFixed(2)}</p>
             </div>
             <div className="mt-6 flex items-center gap-3">
-              <Button className="w-full">Proceed to Checkout</Button>
+              <Button className="w-full" onClick={() => navigate('/checkout')}>Proceed to Checkout</Button>
               <Button className="w-full bg-cyan-600/30 hover:bg-cyan-600/40" onClick={clear}>Clear</Button>
             </div>
           </aside>

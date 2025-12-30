@@ -7,10 +7,17 @@
   html, body, #root {
     @apply h-full;
   }
+  
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 4rem;
+  }
+  
   body {
     @apply font-sans antialiased;
     background: #08080C; /* Cyberpunk Dark background */
     color: #e8fefe;
+    overflow-x: hidden;
   }
   
   /* Light theme */
@@ -505,4 +512,48 @@
     transform: scale(1.3);
     box-shadow: 0 0 10px #00FFFF, 0 0 20px #00FFD1;
   }
-}
+  
+  /* Smooth Performance Optimizations */
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  /* Improve rendering performance */
+  .will-change-transform {
+    will-change: transform;
+  }
+  
+  /* Smooth transitions for all interactive elements */
+  a, button, [role="button"] {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  /* Hide scrollbar but keep functionality */
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* Custom scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: rgba(8, 8, 12, 0.5);
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #06b6d4, #3b82f6);
+    border-radius: 4px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #22d3ee, #60a5fa);
+  }}

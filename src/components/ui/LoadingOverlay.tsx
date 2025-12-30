@@ -24,7 +24,7 @@ export default function LoadingOverlay({ isVisible, text = 'Loading...' }: Loadi
           >
             <motion.img
               src="/logo.jpeg"
-              alt="Buy or Die logo"
+              alt="PlayNex logo"
               className="h-20 w-20 rounded-2xl object-cover shadow-lg shadow-cyan-500/30"
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}

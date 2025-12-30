@@ -9,34 +9,18 @@ const mapProduct = (product: any): Product => ({
   _id: product._id
 })
 
-// Fetch with timeout helper
-const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = 10000) => {
-  const controller = new AbortController()
-  const id = setTimeout(() => controller.abort(), timeout)
-  
-  try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal
-    })
-    clearTimeout(id)
-    return response
-  } catch (error) {
-    clearTimeout(id)
-    throw error
-  }
-}
-
 export const productAPI = {
-  // Get all products
+  // Get all products - simple fetch with no timeout
   async getAll(): Promise<Product[]> {
     try {
-      const response = await fetchWithTimeout(`${API_URL}/products`, {}, 15000)
+      console.log('[API] Fetching products...')
+      const response = await fetch(`${API_URL}/products`)
       if (!response.ok) throw new Error('Failed to fetch products')
       const data = await response.json()
+      console.log(`[API] Got ${data.length} products`)
       return data.map(mapProduct)
     } catch (error) {
-      console.error('Error fetching products:', error)
+      console.error('[API] Error fetching products:', error)
       return []
     }
   },
@@ -49,7 +33,7 @@ export const productAPI = {
       const data = await response.json()
       return mapProduct(data)
     } catch (error) {
-      console.error('Error fetching product:', error)
+      console.error('[API] Error fetching product:', error)
       return null
     }
   },
@@ -57,18 +41,23 @@ export const productAPI = {
   // Create product
   async create(productData: Partial<Product>): Promise<Product | null> {
     try {
+      console.log('[API] Creating product with data:', productData)
       const response = await fetch(`${API_URL}/products`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(productData),
       })
-      if (!response.ok) throw new Error('Failed to create product')
+      if (!response.ok) {
+        const err = await response.json()
+        throw new Error(err.details || 'Failed to create')
+      }
       const data = await response.json()
+      console.log('[API] Product created - response data:', data)
+      console.log('[API] parentId in response:', data.parentId)
+      console.log('[API] productType in response:', data.productType)
       return mapProduct(data)
     } catch (error) {
-      console.error('Error creating product:', error)
+      console.error('[API] Error creating product:', error)
       return null
     }
   },
@@ -76,18 +65,17 @@ export const productAPI = {
   // Update product
   async update(id: string, productData: Partial<Product>): Promise<Product | null> {
     try {
+      console.log('[API] Updating product:', id)
       const response = await fetch(`${API_URL}/products/${id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(productData),
       })
-      if (!response.ok) throw new Error('Failed to update product')
+      if (!response.ok) throw new Error('Failed to update')
       const data = await response.json()
       return mapProduct(data)
     } catch (error) {
-      console.error('Error updating product:', error)
+      console.error('[API] Error updating product:', error)
       return null
     }
   },
@@ -95,13 +83,13 @@ export const productAPI = {
   // Delete product
   async delete(id: string): Promise<boolean> {
     try {
+      console.log('[API] Deleting product:', id)
       const response = await fetch(`${API_URL}/products/${id}`, {
         method: 'DELETE',
       })
-      if (!response.ok) throw new Error('Failed to delete product')
-      return true
+      return response.ok
     } catch (error) {
-      console.error('Error deleting product:', error)
+      console.error('[API] Error deleting product:', error)
       return false
     }
   },

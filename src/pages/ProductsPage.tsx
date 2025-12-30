@@ -88,24 +88,33 @@ export default function ProductsPage() {
       if (updatedProduct._id) {
         // Optimistic update - update UI immediately
         setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p))
-        // Then update MongoDB in background
-        await productAPI.update(updatedProduct._id, updatedProduct)
+        // Then update MongoDB in background - ensure it stays as parent
+        await productAPI.update(updatedProduct._id, {
+          ...updatedProduct,
+          productType: 'parent',
+          parentId: undefined, // Parents have no parent
+        })
       } else {
         // For new products, show a loading state briefly
-        const tempProduct = { ...updatedProduct, id: 'temp-' + Date.now() }
+        const tempId = 'temp-' + crypto.randomUUID()
+        const tempProduct = { ...updatedProduct, id: tempId }
         setProducts(prev => [...prev, tempProduct])
         
-        // Create in MongoDB
-        const created = await productAPI.create(updatedProduct)
+        // Create in MongoDB - mark as parent
+        const created = await productAPI.create({
+          ...updatedProduct,
+          productType: 'parent',
+          parentId: undefined, // Parents have no parent
+        })
         
         // Replace temp with real product
         if (created) {
-          setProducts(prev => prev.map(p => p.id === tempProduct.id ? created : p))
+          setProducts(prev => prev.map(p => p.id === tempId ? created : p))
         }
       }
     } catch (error) {
       console.error('Error saving product:', error)
-      // Reload on error to sync with database
+      // Reload to sync with database
       loadProducts()
     }
   }
@@ -119,7 +128,7 @@ export default function ProductsPage() {
       await productAPI.delete(productId)
     } catch (error) {
       console.error('Error deleting product:', error)
-      // Reload on error to sync with database
+      // Reload to sync with database
       loadProducts()
     }
   }
@@ -137,15 +146,27 @@ export default function ProductsPage() {
     setIsModalOpen(true)
   }
 
-  // Load products from MongoDB
+  // Load products from MongoDB on mount
   const loadProducts = async () => {
     setLoading(true)
     const data = await productAPI.getAll()
-    setProducts(data)
+    console.log('Loaded all products:', data.length, data)
+    // Filter to show ONLY parent products:
+    // CRITICAL: If parentId exists, it's definitely a child/grandchild - EXCLUDE IT
+    // Then check: productType must be 'parent' OR undefined (legacy products without type)
+    const parentProducts = data.filter(p => {
+      // First rule: If it has a parentId, it's NOT a parent - exclude
+      if (p.parentId) return false
+      
+      // Second rule: If no parentId, include if it's marked as parent OR has no type (legacy)
+      return !p.productType || p.productType === 'parent'
+    })
+    console.log('Filtered parent products:', parentProducts.length, parentProducts)
+    setProducts(parentProducts)
     setLoading(false)
   }
 
-  // Load products on component mount
+  // Load products on component mount and refresh
   useEffect(() => {
     loadProducts()
   }, [])

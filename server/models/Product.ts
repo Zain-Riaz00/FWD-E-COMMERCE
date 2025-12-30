@@ -14,7 +14,11 @@ export interface IProduct extends Document {
     color: string
     name: string
     imageUrl: string
+    price?: number
   }>
+  // Hierarchy fields
+  parentId?: string  // If set, this is a child of another product
+  productType?: 'parent' | 'child' | 'grandchild'  // Type in hierarchy
   createdAt: Date
   updatedAt: Date
 }
@@ -23,34 +27,29 @@ const ProductSchema: Schema = new Schema(
   {
     name: {
       type: String,
-      required: [true, 'Please add a product name'],
-      trim: true,
-      maxlength: [100, 'Name cannot be more than 100 characters']
+      required: true,
+      trim: true
     },
     price: {
       type: Number,
-      required: [true, 'Please add a price'],
-      min: [0, 'Price cannot be negative']
+      required: true,
+      min: 0
     },
     description: {
       type: String,
-      required: [true, 'Please add a description'],
-      maxlength: [500, 'Description cannot be more than 500 characters']
+      required: true
     },
     imageUrl: {
       type: String,
-      required: [true, 'Please add an image URL']
+      required: true
     },
     rating: {
       type: Number,
-      default: 0,
-      min: [0, 'Rating cannot be less than 0'],
-      max: [5, 'Rating cannot be more than 5']
+      default: 0
     },
     reviewCount: {
       type: Number,
-      default: 0,
-      min: [0, 'Review count cannot be negative']
+      default: 0
     },
     category: {
       type: String,
@@ -58,8 +57,7 @@ const ProductSchema: Schema = new Schema(
     },
     stock: {
       type: Number,
-      default: 0,
-      min: [0, 'Stock cannot be negative']
+      default: 0
     },
     colors: {
       type: [String],
@@ -69,20 +67,24 @@ const ProductSchema: Schema = new Schema(
       type: [{
         color: String,
         name: String,
-        imageUrl: String
+        imageUrl: String,
+        price: Number
       }],
       default: []
+    },
+    parentId: {
+      type: String, // Store as string for simplicity
+      default: null
+    },
+    productType: {
+      type: String,
+      enum: ['parent', 'child', 'grandchild', null],
+      default: null
     }
   },
   {
     timestamps: true
   }
 )
-
-// Add indexes for faster queries
-ProductSchema.index({ name: 1 })
-ProductSchema.index({ category: 1 })
-ProductSchema.index({ price: 1 })
-ProductSchema.index({ createdAt: -1 })
 
 export default mongoose.model<IProduct>('Product', ProductSchema)

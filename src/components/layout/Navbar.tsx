@@ -7,12 +7,15 @@ import { motion } from 'framer-motion'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import LoadingOverlay from '@/components/ui/LoadingOverlay'
 import { GLOBAL_NOTIFICATION_KEY, loadGlobalNotifications } from '@/utils/notificationFeed'
+import { getUserStatus } from '@/utils/guestUser'
+import GuestRestrictionModal from '@/components/ui/GuestRestrictionModal'
 
 export default function Navbar({ onMenuToggle }: { onMenuToggle?: () => void }) {
   const [query, setQuery] = useState('')
   const [isSplashVisible, setIsSplashVisible] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [showGuestModal, setShowGuestModal] = useState(false)
   const splashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const navigate = useNavigate()
   const location = useLocation()
@@ -20,6 +23,7 @@ export default function Navbar({ onMenuToggle }: { onMenuToggle?: () => void }) 
   const { isAdmin, logout } = useAdmin()
   const [allProducts, setAllProducts] = useState<any[]>([])
   const [notificationCount, setNotificationCount] = useState(0)
+  const userStatus = getUserStatus()
 
   useEffect(() => {
     // Fetch products for suggestions
@@ -124,11 +128,20 @@ export default function Navbar({ onMenuToggle }: { onMenuToggle?: () => void }) 
     splashTimerRef.current = setTimeout(performLogout, 1200)
   }
 
+  const handleProfileClick = () => {
+    if (userStatus.isGuest) {
+      // Show modal for guest users
+      setShowGuestModal(true)
+    } else {
+      navigate('/profile')
+    }
+  }
+
   return (
     <>
       <LoadingOverlay isVisible={isSplashVisible} text="Logging out..." />
     <header className="glass-navbar z-50 px-3 sm:px-4">
-      <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-2 py-2 sm:gap-3 md:flex-nowrap">
+      <div className="mx-auto flex w-full max-w-full flex-wrap items-center gap-2 py-2 sm:gap-3 md:flex-nowrap">
         {/* Menu Button */}
         <div className="flex flex-shrink-0 items-center gap-2">
           {onMenuToggle && (
@@ -143,7 +156,7 @@ export default function Navbar({ onMenuToggle }: { onMenuToggle?: () => void }) 
 
           <Link to="/" className="flex items-center gap-2 text-cyan-200 hover:text-cyber-neonAccent">
             <img src="/logo.jpeg" alt="Logo" className="h-8 w-8 rounded-lg object-cover" />
-            <span className="text-sm font-semibold tracking-wider whitespace-nowrap sm:text-base md:text-lg">Buy or Die</span>
+            <span className="text-sm font-semibold tracking-wider whitespace-nowrap sm:text-base md:text-lg">PlayNex</span>
           </Link>
         </div>
 
@@ -229,7 +242,7 @@ export default function Navbar({ onMenuToggle }: { onMenuToggle?: () => void }) 
           )}
 
           {/* Logout Button - Pop + Glow on Hover */}
-          {isAdmin && (
+          {isAdmin && !userStatus.isGuest && (
             <motion.button
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -270,18 +283,35 @@ export default function Navbar({ onMenuToggle }: { onMenuToggle?: () => void }) 
             <ShoppingCart className="h-6 w-6" />
             <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-cyan-600/40 px-1.5 text-[10px] font-semibold text-white shadow-sm">{totalQuantity}</span>
           </Link>
-          <Link 
-            to="/profile" 
-            onClick={(e) => handleNavClick(e, '/profile')}
-            aria-label="Account" 
-            className="hidden sm:inline-flex items-center rounded-lg p-2 text-cyan-200 hover:bg-white/5 hover:text-cyber-neonAccent"
-          >
-            <User className="h-6 w-6" />
-          </Link>
+          {userStatus.isGuest ? (
+            <button 
+              onClick={handleProfileClick}
+              aria-label="Account" 
+              className="hidden sm:inline-flex items-center rounded-lg p-2 text-cyan-200 hover:bg-white/5 hover:text-cyber-neonAccent"
+            >
+              <User className="h-6 w-6" />
+            </button>
+          ) : (
+            <Link 
+              to="/profile" 
+              onClick={(e) => handleNavClick(e, '/profile')}
+              aria-label="Account" 
+              className="hidden sm:inline-flex items-center rounded-lg p-2 text-cyan-200 hover:bg-white/5 hover:text-cyber-neonAccent"
+            >
+              <User className="h-6 w-6" />
+            </Link>
+          )}
           <ThemeToggle className="inline-flex items-center justify-center rounded-full p-1.5 sm:p-2 backdrop-blur-md ring-1 transition-all shadow-md border dark:bg-cyan-500/20 dark:border-cyan-400/30 dark:ring-cyan-400/40 dark:hover:ring-cyan-400/60 dark:shadow-cyan-500/20 bg-white/40 border-white/10 ring-blue-400/70 hover:ring-blue-500 shadow-blue-500/30 hover:bg-white/50" />
         </nav>
       </div>
     </header>
+    
+    {/* Guest Restriction Modal */}
+    <GuestRestrictionModal 
+      isOpen={showGuestModal}
+      onClose={() => setShowGuestModal(false)}
+      action="access your profile"
+    />
     </>
   )
 }

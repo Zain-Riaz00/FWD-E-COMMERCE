@@ -5,6 +5,7 @@ import { Mail, Lock, User, Shield, Sparkles, Zap, Fingerprint } from 'lucide-rea
 import { useAdmin } from '@/contexts/AdminContext'
 import LoadingOverlay from '@/components/ui/LoadingOverlay'
 import ThemeToggle from '@/components/ui/ThemeToggle'
+import { setGuestUser } from '@/utils/guestUser'
 
 type FormType = 'login' | 'signup' | 'admin'
 
@@ -193,6 +194,11 @@ export default function AuthPage() {
     setShowForgotPassword(true)
   }
 
+  const handleSkip = () => {
+    setGuestUser()
+    navigate('/')
+  }
+
   const getFormConfig = (type: FormType) => {
     const configs = {
       login: {
@@ -323,7 +329,7 @@ export default function AuthPage() {
           whileTap={{ scale: 0.95 }}
           onClick={() => handleCardClick('login')}
           className={`group relative w-16 h-16 rounded-2xl backdrop-blur-md bg-white/10 border border-white/20 
-            hover:bg-white/20 transition-all duration-200 overflow-hidden
+            hover:bg-white/20 transition-all duration-200
             ${selectedForm === 'login' ? 'ring-2 ring-cyan-400 bg-white/20 shadow-lg shadow-cyan-500/50' : ''}`}
           style={{ willChange: 'transform' }}
         >
@@ -334,6 +340,7 @@ export default function AuthPage() {
             animate={{ opacity: selectedForm === 'login' ? [0.5, 1, 0.5] : 0 }}
             transition={{ duration: 2, repeat: Infinity }}
           />
+          <span className="absolute top-1/2 left-[calc(100%+0.75rem)] transform -translate-y-1/2 text-sm text-white bg-cyan-600/80 backdrop-blur-xl px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none shadow-lg shadow-cyan-500/50 ring-1 ring-white/20 z-50">Login</span>
         </motion.button>
 
         {/* Sign Up Button */}
@@ -342,7 +349,7 @@ export default function AuthPage() {
           whileTap={{ scale: 0.95 }}
           onClick={() => handleCardClick('signup')}
           className={`group relative w-16 h-16 rounded-2xl backdrop-blur-md bg-white/10 border border-white/20 
-            hover:bg-white/20 transition-all duration-200 overflow-hidden
+            hover:bg-white/20 transition-all duration-200
             ${selectedForm === 'signup' ? 'ring-2 ring-green-400 bg-white/20 shadow-lg shadow-green-500/50' : ''}`}
           style={{ willChange: 'transform' }}
         >
@@ -353,6 +360,7 @@ export default function AuthPage() {
             animate={{ opacity: selectedForm === 'signup' ? [0.5, 1, 0.5] : 0 }}
             transition={{ duration: 2, repeat: Infinity }}
           />
+          <span className="absolute top-1/2 left-[calc(100%+0.75rem)] transform -translate-y-1/2 text-sm text-white bg-green-600/80 backdrop-blur-xl px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none shadow-lg shadow-green-500/50 ring-1 ring-white/20 z-50">Sign Up</span>
         </motion.button>
 
         {/* Admin Button */}
@@ -361,7 +369,7 @@ export default function AuthPage() {
           whileTap={{ scale: 0.95 }}
           onClick={() => handleCardClick('admin')}
           className={`group relative w-16 h-16 rounded-2xl backdrop-blur-md bg-white/10 border border-white/20 
-            hover:bg-white/20 transition-all duration-200 overflow-hidden
+            hover:bg-white/20 transition-all duration-200
             ${selectedForm === 'admin' ? 'ring-2 ring-purple-400 bg-white/20 shadow-lg shadow-purple-500/50' : ''}`}
           style={{ willChange: 'transform' }}
         >
@@ -372,6 +380,7 @@ export default function AuthPage() {
             animate={{ opacity: selectedForm === 'admin' ? [0.5, 1, 0.5] : 0 }}
             transition={{ duration: 2, repeat: Infinity }}
           />
+          <span className="absolute top-1/2 left-[calc(100%+0.75rem)] transform -translate-y-1/2 text-sm text-white bg-purple-600/80 backdrop-blur-xl px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none shadow-lg shadow-purple-500/50 ring-1 ring-white/20 z-50">Admin</span>
         </motion.button>
       </div>
 
@@ -394,7 +403,7 @@ export default function AuthPage() {
               className="mb-8 inline-block"
             >
               <div className="relative">
-                <Sparkles className="w-24 h-24 text-cyan-400 drop-shadow-2xl" />
+                <Sparkles className="w-32 h-32 text-cyan-400 drop-shadow-2xl" />
                 <motion.div
                   animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0.8, 0.5] }}
                   transition={{ duration: 2, repeat: Infinity }}
@@ -470,13 +479,41 @@ export default function AuthPage() {
               className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md"
             >
               <div className="bg-white/70 dark:bg-black/40 backdrop-blur-xl rounded-3xl p-8 shadow-2xl ring-1 ring-white/20 dark:ring-black/20 border border-white/10 dark:border-black/20">
-                <h3 className="text-2xl font-bold text-gray-800 mb-2">Reset Password</h3>
-                <p className="text-sm text-gray-600 mb-6">Enter your email to receive reset instructions</p>
-                <form onSubmit={(e) => { e.preventDefault(); setShowForgotPassword(false); }} className="space-y-4">
+                <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">Reset Password</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">Enter your email to receive an OTP</p>
+                <form onSubmit={async (e) => {
+                    e.preventDefault();
+                    const emailInput = (e.target as HTMLFormElement).email as HTMLInputElement;
+                    const email = emailInput.value;
+                    
+                    setIsLoading(true);
+                    try {
+                      const response = await fetch('http://localhost:5000/api/auth/send-otp', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email })
+                      });
+
+                      if (!response.ok) {
+                        const data = await response.json();
+                        setErrorMessage(data.message || 'Failed to send OTP.');
+                        setIsLoading(false);
+                        return;
+                      }
+
+                      setSuccessMessage('OTP sent successfully! Check your email.');
+                      setShowForgotPassword(false);
+                    } catch (error) {
+                      console.error('Error sending OTP:', error);
+                      setErrorMessage('Network error. Please try again.');
+                    }
+                    setIsLoading(false);
+                  }} className="space-y-4">
                   <div className="relative">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                     <input
                       type="email"
+                      name="email"
                       placeholder="you@example.com"
                       className="w-full pl-12 pr-4 py-3 bg-white/40 dark:bg-black/30 border border-white/10 dark:border-black/20 rounded-xl text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all backdrop-blur-sm"
                       required
@@ -486,15 +523,16 @@ export default function AuthPage() {
                     <button
                       type="button"
                       onClick={() => setShowForgotPassword(false)}
-                      className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                      className="flex-1 px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="flex-1 px-4 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white rounded-xl text-sm font-semibold hover:shadow-lg transition-all"
+                      disabled={isLoading}
+                      className="flex-1 px-4 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white rounded-xl text-sm font-semibold hover:shadow-lg transition-all disabled:opacity-50"
                     >
-                      Send Link
+                      {isLoading ? 'Sending...' : 'Send OTP'}
                     </button>
                   </div>
                 </form>
@@ -526,10 +564,17 @@ export default function AuthPage() {
                 ease: [0.25, 0.1, 0.25, 1]
               }}
               onMouseEnter={() => setIsExpanded(true)}
-              onMouseLeave={() => setIsExpanded(false)}
-              className={`relative backdrop-blur-none bg-white/10 dark:bg-black/10 border border-white/5 dark:border-white/2.5 rounded-3xl shadow-md 
+              onMouseLeave={(e) => {
+                // Only close if not hovering over form elements or autocomplete dropdown
+                const relatedTarget = e.relatedTarget as HTMLElement | null
+                if (relatedTarget && e.currentTarget.contains(relatedTarget)) {
+                  return
+                }
+                setIsExpanded(false)
+              }}
+              className={`relative backdrop-blur-xl bg-transparent border border-white/20 dark:border-white/10 rounded-3xl shadow-2xl 
                 ${config.glowColor} ring-1 ${config.ringColor}
-                overflow-hidden cursor-pointer backdrop-filter`}
+                overflow-hidden cursor-pointer`}
               style={{ 
                 willChange: 'width, height',
                 backfaceVisibility: 'hidden',
@@ -784,7 +829,7 @@ export default function AuthPage() {
                           <button
                             type="button"
                             onClick={handleForgotPassword}
-                            className={`text-xs font-medium bg-gradient-to-r ${config.gradient} bg-clip-text text-transparent hover:opacity-80 transition-opacity`}
+                            className={`text-xs font-medium bg-gradient-to-r ${config.gradient} bg-clip-text text-transparent hover:opacity-80 transition-opacity pointer-events-auto cursor-pointer`}
                           >
                             Forgot password?
                           </button>
@@ -813,6 +858,17 @@ export default function AuthPage() {
                           </>
                         )}
                       </button>
+
+                      {/* Skip for Now Button */}
+                      {(selectedForm === 'login' || selectedForm === 'signup') && (
+                        <button
+                          type="button"
+                          onClick={handleSkip}
+                          className="w-full mt-3 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors underline"
+                        >
+                          Skip for now
+                        </button>
+                      )}
                     </form>
                   </motion.div>
                 )}

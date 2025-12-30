@@ -3,36 +3,49 @@ import { motion } from 'framer-motion'
 import { User, Lock, MapPin, Camera, HelpCircle, LogOut, Save, Edit2, ArrowLeft, Shield } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import VerifiedBadge from '@/components/ui/VerifiedBadge'
+import { isGuestUser } from '@/utils/guestUser'
+import GuestRestrictionModal from '@/components/ui/GuestRestrictionModal'
 
 export default function ProfilePage() {
   const navigate = useNavigate()
+  const [showGuestModal, setShowGuestModal] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [isEditingAddress, setIsEditingAddress] = useState(false)
   const [activeTab, setActiveTab] = useState<'profile' | 'address' | 'password' | 'help'>('profile')
   const [isAdmin] = useState(() => localStorage.getItem('isAdmin') === 'true')
-  const [profileData, setProfileData] = useState({
-    name: 'Zain Riaz',
-    email: 'zain.riaz@example.com',
-    phone: '+92 309 8261850',
-    address: '123 Main St',
-    city: 'Lahore',
-    zip: '54000',
-    country: 'Pakistan'
+  
+  // Initialize profile data from localStorage
+  const [profileData, setProfileData] = useState(() => {
+    const savedProfile = localStorage.getItem('userProfile')
+    return savedProfile ? JSON.parse(savedProfile) : {
+      name: 'Zain Riaz',
+      email: 'zain.riaz@example.com',
+      phone: '+92 309 8261850',
+      address: '123 Main St',
+      city: 'Lahore',
+      zip: '54000',
+      country: 'Pakistan'
+    }
   })
+  
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: ''
   })
 
-  // Load profile data from localStorage on mount
+  // Check if user is guest and redirect immediately
   useEffect(() => {
-    const savedProfile = localStorage.getItem('userProfile')
-    if (savedProfile) {
-      setProfileData(JSON.parse(savedProfile))
+    if (isGuestUser()) {
+      navigate('/')
     }
-  }, [])
+  }, [navigate])
 
+  // Don't render anything for guest users
+  if (isGuestUser()) {
+    return null
+  }
+  
   const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setProfileData(prev => ({
       ...prev,
@@ -449,6 +462,13 @@ export default function ProfilePage() {
           </main>
         </div>
       </div>
+
+      {/* Guest Restriction Modal */}
+      <GuestRestrictionModal
+        isOpen={showGuestModal}
+        onClose={() => setShowGuestModal(false)}
+        action="view your profile"
+      />
     </div>
   )
 }

@@ -11,6 +11,7 @@ import GalleryLoadingOverlay from '@/components/ui/GalleryLoadingOverlay'
 import EditProductModal from '@/components/admin/EditProductModal'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { Edit2, Plus, Trash2, Package, ChevronLeft, ChevronRight } from 'lucide-react'
+import { productAPI } from '@/services/api'
 
 // Helper to calculate average rating
 function getAverageRating(reviews: Review[]): number {
@@ -166,34 +167,55 @@ export default function ProductGallery3D() {
   const startAngle = useRef(0)
   const startVerticalAngle = useRef(0)
   const animationFrameRef = useRef<number | undefined>(undefined)
+  const [parentProduct, setParentProduct] = useState<Product | null>(null)
 
-  // Load product variants from localStorage (specific to this product ID)
+  // Load product children (child products) from database based on parent ID
   useEffect(() => {
-    const loadProductVariants = () => {
-      // Get variants for this specific product from localStorage
-      const storageKey = `product-variants-${id}`
-      const storedVariants = localStorage.getItem(storageKey)
-      
-      if (storedVariants) {
-        try {
-          const variants = JSON.parse(storedVariants)
-          setProducts(variants)
-        } catch (error) {
-          console.error('Error loading variants:', error)
+    const loadProductChildren = async () => {
+      try {
+        // Fetch all products from database
+        const allProducts = await productAPI.getAll()
+        console.log('3D Gallery - URL id:', id)
+        
+        // First, find the parent product to get its MongoDB _id
+        const parent = allProducts.find(p => p.id === id || p._id === id)
+        console.log('3D Gallery - Found parent:', parent)
+        setParentProduct(parent || null)
+        
+        if (!parent) {
+          console.warn('3D Gallery - Parent product not found for id:', id)
           setProducts([])
+          return
         }
-      } else {
-        // No variants yet - start with empty array
+        
+        // Use parent's _id (MongoDB ID) for filtering children
+        const parentDbId = parent._id || parent.id
+        console.log('3D Gallery - Using parent DB ID:', parentDbId)
+        
+        // Filter to get only children of this parent product (NOT the parent itself)
+        const children = allProducts.filter(p => {
+          const matches = (p.parentId === parentDbId || p.parentId === parent.id) && p.productType === 'child'
+          if (matches) {
+            console.log('3D Gallery - Found child:', p.name, 'parentId:', p.parentId)
+          }
+          return matches
+        })
+        
+        console.log('3D Gallery - Total children found:', children.length)
+        // Always show only children, even if empty - don't show parent
+        setProducts(children)
+      } catch (error) {
+        console.error('Error loading product children:', error)
         setProducts([])
       }
     }
 
-    loadProductVariants()
+    loadProductChildren()
     
-    // Reload variants when page becomes visible (user navigates back)
+    // Reload children when page becomes visible (user navigates back)
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        loadProductVariants()
+        loadProductChildren()
       }
     }
     
@@ -435,22 +457,32 @@ export default function ProductGallery3D() {
     setDeletingProductId(confirmDelete.productId)
     
     // Wait for fade animation to complete before removing product from state
-    setTimeout(() => {
-      const updatedProducts = products.filter(p => p.id !== confirmDelete.productId)
-      setProducts(updatedProducts)
-      
-      // Save to localStorage immediately
-      if (id) {
-        const storageKey = `product-variants-${id}`
-        localStorage.setItem(storageKey, JSON.stringify(updatedProducts))
+    setTimeout(async () => {
+      try {
+        // Find the product to get its _id
+        const productToDelete = products.find(p => p.id === confirmDelete.productId)
+        
+        if (productToDelete?._id) {
+          // Delete from database
+          await productAPI.delete(productToDelete._id)
+          console.log('Deleted child product from database:', productToDelete.name)
+        }
+        
+        // Update local state
+        const updatedProducts = products.filter(p => p.id !== confirmDelete.productId)
+        setProducts(updatedProducts)
+        
+        // Close focused view if we deleted the focused product
+        if (focusedProduct?.product.id === confirmDelete.productId) {
+          setFocusedProduct(null)
+        }
+      } catch (error) {
+        console.error('Error deleting product:', error)
+        alert('Failed to delete product. Please try again.')
+      } finally {
+        setDeletingProductId(null)
+        setConfirmDelete({ show: false, productId: null })
       }
-      
-      // Close focused view if we deleted the focused product
-      if (focusedProduct?.product.id === confirmDelete.productId) {
-        setFocusedProduct(null)
-      }
-      setDeletingProductId(null)
-      setConfirmDelete({ show: false, productId: null })
     }, 800) // Match the fade animation duration
   }
 
@@ -458,31 +490,57 @@ export default function ProductGallery3D() {
     // Close modal immediately for better UX
     setIsEditModalOpen(false)
     
-    let updatedProducts: Product[]
-    
-    if (updatedProduct.id && updatedProduct.id !== 'new') {
-      // Update existing variant
-      updatedProducts = products.map(p => p.id === updatedProduct.id ? updatedProduct : p)
-      setProducts(updatedProducts)
-      // Update focused product if it was the one being edited
-      if (focusedProduct?.product.id === updatedProduct.id) {
-        setFocusedProduct({ ...focusedProduct, product: updatedProduct })
-      }
-    } else {
-      // Create new variant with unique ID
-      const newVariant = {
-        ...updatedProduct,
-        id: `variant-${id}-${Date.now()}`,
-        _id: `variant-${id}-${Date.now()}`
-      }
-      updatedProducts = [...products, newVariant]
-      setProducts(updatedProducts)
+    if (!parentProduct) {
+      console.error('Cannot save child: parent product not loaded')
+      alert('Error: Parent product not found. Please refresh the page.')
+      return
     }
     
-    // Save to localStorage immediately
-    if (id) {
-      const storageKey = `product-variants-${id}`
-      localStorage.setItem(storageKey, JSON.stringify(updatedProducts))
+    // Use parent's MongoDB _id as the parentId
+    const parentDbId = parentProduct._id || parentProduct.id
+    console.log('Saving child with parentId:', parentDbId)
+    
+    try {
+      if (updatedProduct.id && updatedProduct.id !== 'new' && updatedProduct._id) {
+        // Update existing child product in database
+        const updateData = {
+          ...updatedProduct,
+          parentId: parentDbId, // Use parent's DB ID
+          productType: 'child' as const,
+        }
+        console.log('Updating child:', updateData)
+        await productAPI.update(updatedProduct._id, updateData)
+        
+        // Update local state
+        const updatedProducts = products.map(p => p.id === updatedProduct.id ? { ...updatedProduct, parentId: parentDbId, productType: 'child' as const } : p)
+        setProducts(updatedProducts)
+        
+        // Update focused product if it was the one being edited
+        if (focusedProduct?.product.id === updatedProduct.id) {
+          setFocusedProduct({ ...focusedProduct, product: { ...updatedProduct, parentId: parentDbId, productType: 'child' as const } })
+        }
+        
+        console.log('Updated child product:', updatedProduct.name)
+      } else {
+        // Create new child product in database
+        const createData = {
+          ...updatedProduct,
+          parentId: parentDbId, // Use parent's DB ID
+          productType: 'child' as const,
+          stock: 100,
+        }
+        console.log('Creating new child:', createData)
+        const newChild = await productAPI.create(createData)
+        
+        if (newChild) {
+          // Add to local state
+          setProducts([...products, newChild])
+          console.log('Created new child product:', newChild.name, 'with parentId:', newChild.parentId)
+        }
+      }
+    } catch (error) {
+      console.error('Error saving child product:', error)
+      alert('Failed to save product. Please try again.')
     }
   }
 
@@ -809,30 +867,15 @@ export default function ProductGallery3D() {
                   </div>
                   
                   <div className="flex gap-2">
-                    {isAdmin && (
-                      <>
-                        <button
-                          onClick={() => {
-                            setEditingProduct(focusedProduct.product)
-                            setIsEditModalOpen(true)
-                          }}
-                          className="rounded-lg bg-blue-500/30 dark:bg-blue-500/30 bg-white/80 px-4 py-2.5 text-sm font-semibold text-blue-100 dark:text-blue-100 text-slate-900 ring-1 ring-inset dark:ring-blue-400/50 ring-blue-500/60 transition hover:bg-blue-500/40 dark:hover:bg-blue-500/40 hover:bg-white/90 flex items-center gap-2 hover:scale-105 hover:shadow-lg"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                          Edit
-                        </button>
-                        {/* Colors button removed from 3D gallery */}
-                      </>
-                    )}
                     <button
                       onClick={handleAddToCart}
-                      className="flex-1 rounded-lg bg-cyan-500/30 px-4 py-2.5 text-sm font-semibold text-cyan-100 ring-1 ring-inset ring-cyan-400/50 transition hover:bg-cyan-500/40"
+                      className="flex-1 rounded-lg bg-gradient-to-r from-cyan-500/30 to-blue-500/30 backdrop-blur-xl px-4 py-2.5 text-sm font-semibold text-cyan-100 ring-1 ring-inset ring-cyan-400/50 shadow-lg shadow-cyan-500/20 transition hover:from-cyan-500/40 hover:to-blue-500/40 hover:ring-cyan-300/60 hover:shadow-cyan-500/30 hover:scale-105"
                     >
                       Add to Cart
                     </button>
                     <button
                       onClick={handleEnterImmersive}
-                      className="group flex-1 rounded-lg border border-cyan-400/40 px-4 py-2.5 text-sm font-semibold text-cyan-100 transition hover:border-cyan-300/60 hover:bg-cyan-500/10"
+                      className="group flex-1 rounded-lg bg-gradient-to-r from-purple-500/20 to-indigo-500/20 backdrop-blur-xl border border-cyan-400/40 px-4 py-2.5 text-sm font-semibold text-cyan-100 shadow-lg shadow-purple-500/10 transition hover:border-cyan-300/60 hover:from-purple-500/30 hover:to-indigo-500/30 hover:shadow-purple-500/20 hover:scale-105"
                     >
                       <span className="flex items-center justify-center gap-1">
                         Immersive

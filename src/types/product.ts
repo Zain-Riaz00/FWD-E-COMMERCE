@@ -1,7 +1,9 @@
 export interface ColorVariant {
   name: string // Color name (e.g., 'Black', 'White', 'Blue')
-  colorCode: string // Hex color code
+  color?: string // Color display name
+  colorCode?: string // Hex color code
   imageUrl: string // Image for this color variant
+  price?: number // Price for this specific color variant (optional, can differ)
 }
 
 export interface Category {
@@ -78,4 +80,7 @@ export interface Product {
   category?: string // Category ID for filtering/organization
   stock?: number // Stock quantity
   colors?: string[] // Array of color codes
+  // Hierarchy fields for parent-child-grandchild structure
+  parentId?: string // If set, this is a child/grandchild of another product
+  productType?: 'parent' | 'child' | 'grandchild' // Type in hierarchy
 }

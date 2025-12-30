@@ -22,6 +22,7 @@ export default function ColorManagementModal({
     name: '',
     colorCode: '#000000',
     imageUrl: '',
+    price: undefined,
   })
   const [imagePreview, setImagePreview] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -63,7 +64,7 @@ export default function ColorManagementModal({
         })
       }
       // Reset form
-      setTempColor({ name: '', colorCode: '#000000', imageUrl: '' })
+      setTempColor({ name: '', colorCode: '#000000', imageUrl: '', price: undefined })
       setImagePreview('')
     } else {
       console.log('Validation failed - name or imageUrl missing')
@@ -108,7 +109,7 @@ export default function ColorManagementModal({
 
   const handleCancel = () => {
     setEditingIndex(null)
-    setTempColor({ name: '', colorCode: '#000000', imageUrl: '' })
+    setTempColor({ name: '', colorCode: '#000000', imageUrl: '', price: undefined })
     setImagePreview('')
   }
 
@@ -220,7 +221,7 @@ export default function ColorManagementModal({
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-3 gap-3 mb-3">
+                    <div className="grid grid-cols-4 gap-3 mb-3">
                       {/* Color Name */}
                       <div>
                         <label className="block text-xs font-medium text-purple-100 mb-1">
@@ -235,15 +236,31 @@ export default function ColorManagementModal({
                         />
                       </div>
 
-                      {/* Color Code with Picker */}
+                      {/* Price (Optional) */}
                       <div>
+                        <label className="block text-xs font-medium text-purple-100 mb-1">
+                          Price (Optional)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={tempColor.price || ''}
+                          onChange={(e) => setTempColor(prev => ({ ...prev, price: e.target.value ? Number(e.target.value) : undefined }))}
+                          className="w-full px-3 py-1.5 text-sm bg-black/40 border border-purple-400/30 rounded-lg text-purple-100 placeholder-purple-300/40 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all"
+                          placeholder="Price"
+                        />
+                      </div>
+
+                      {/* Color Code with Picker */}
+                      <div className="col-span-2">
                         <label className="block text-xs font-medium text-purple-100 mb-1">
                           Color Picker
                         </label>
                         <div className="flex gap-2">
                           <input
                             type="color"
-                            value={tempColor.colorCode}
+                            value={tempColor.colorCode || '#000000'}
                             onChange={(e) => setTempColor(prev => ({ ...prev, colorCode: e.target.value }))}
                             className="w-10 h-[34px] bg-black/40 border border-purple-400/30 rounded-lg cursor-pointer"
                             title="Pick a color"
@@ -377,11 +394,16 @@ export default function ColorManagementModal({
                               <div className="flex items-center gap-2">
                                 <div
                                   className="w-4 h-4 rounded-full border border-white/30"
-                                  style={{ backgroundColor: color.colorCode }}
+                                  style={{ backgroundColor: color.colorCode || '#000000' }}
                                 />
                                 <span className="text-sm font-medium text-purple-100">{color.name}</span>
                               </div>
-                              <span className="text-xs text-purple-300/60">{color.colorCode}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-purple-300/60">{color.colorCode || '#000000'}</span>
+                                {color.price && (
+                                  <span className="text-xs text-green-400 font-semibold">Rs. {color.price}</span>
+                                )}
+                              </div>
                             </div>
 
                             {/* Actions */}

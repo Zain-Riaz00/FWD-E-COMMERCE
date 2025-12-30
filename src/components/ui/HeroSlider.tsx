@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { Slide } from '@/types/product'
 
@@ -63,23 +62,27 @@ export default function HeroSlider({ slides }: HeroSliderProps) {
           {/* Content */}
           <div className="relative z-10 h-full flex items-center px-6">
             <div className="max-w-md">
-              <motion.h2
-                initial={{ y: 15, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.2 }}
-                className="text-2xl sm:text-3xl font-bold text-white dark:text-white text-slate-900 mb-3 leading-tight"
-              >
-                {currentSlide.title}
-              </motion.h2>
+              {currentSlide.title && (
+                <motion.h2
+                  initial={{ y: 15, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.2 }}
+                  className="text-2xl sm:text-3xl font-bold text-white dark:text-white text-slate-900 mb-3 leading-tight"
+                >
+                  {currentSlide.title}
+                </motion.h2>
+              )}
               
-              <motion.p
-                initial={{ y: 15, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.3 }}
-                className="text-sm sm:text-base text-cyan-100/90 dark:text-cyan-100/90 text-slate-700 mb-4 leading-relaxed"
-              >
-                {currentSlide.description}
-              </motion.p>
+              {currentSlide.description && (
+                <motion.p
+                  initial={{ y: 15, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                  className="text-sm sm:text-base text-cyan-100/90 dark:text-cyan-100/90 text-slate-700 mb-4 leading-relaxed"
+                >
+                  {currentSlide.description}
+                </motion.p>
+              )}
               
               {currentSlide.buttonText && (
                 <motion.button
@@ -96,27 +99,6 @@ export default function HeroSlider({ slides }: HeroSliderProps) {
           </div>
         </motion.div>
       </AnimatePresence>
-      
-      {/* Navigation Arrows */}
-      {slides.length > 1 && (
-        <>
-          <button
-            onClick={handlePrev}
-            className="absolute left-2 top-1/2 -translate-y-1/2 z-20 p-1.5 sm:p-2 bg-black/40 dark:bg-black/40 bg-white/80 hover:bg-black/60 dark:hover:bg-black/60 hover:bg-white/95 text-white dark:text-white text-slate-900 rounded-full backdrop-blur-sm transition-all hover:scale-110 shadow-lg"
-            aria-label="Previous slide"
-          >
-            <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-          </button>
-          
-          <button
-            onClick={handleNext}
-            className="absolute right-2 top-1/2 -translate-y-1/2 z-20 p-1.5 sm:p-2 bg-black/40 dark:bg-black/40 bg-white/80 hover:bg-black/60 dark:hover:bg-black/60 hover:bg-white/95 text-white dark:text-white text-slate-900 rounded-full backdrop-blur-sm transition-all hover:scale-110 shadow-lg"
-            aria-label="Next slide"
-          >
-            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
-          </button>
-        </>
-      )}
       
       {/* Indicators */}
       {slides.length > 1 && (

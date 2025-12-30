@@ -1,79 +1,238 @@
 import HeroSection from '@/components/home/HeroSection'
-
-
+import ProductSection from '@/components/home/ProductSection'
 import Footer from '@/components/layout/Footer'
+import ScrollToTop from '@/components/ui/ScrollToTop'
+import ProductCardSkeleton from '@/components/ui/ProductCardSkeleton'
 import { motion } from 'framer-motion'
-import { Monitor, Headphones, Keyboard, Mouse, Cpu, Camera } from 'lucide-react'
-
-const categories = [
-  { icon: Monitor, title: 'Displays' },
-  { icon: Headphones, title: 'Audio' },
-  { icon: Keyboard, title: 'Keyboards' },
-  { icon: Mouse, title: 'Mice' },
-  { icon: Cpu, title: 'CPU & Parts' },
-  { icon: Camera, title: 'Cameras' },
-]
+import { useState, useEffect } from 'react'
+import { productAPI } from '@/services/api'
+import { Link } from 'react-router-dom'
+import type { Product } from '@/types/product'
+import { Sparkles, Loader2 } from 'lucide-react'
 
 export default function HomePage() {
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    loadProducts()
+  }, [])
+
+  async function loadProducts() {
+    setLoading(true)
+    try {
+      const data = await productAPI.getAll()
+      // Filter to show ONLY children products (not parents or grandchildren)
+      // Must have productType='child' explicitly set (no legacy fallback here)
+      const childProducts = data.filter(p => p.productType === 'child')
+      setProducts(childProducts)
+    } catch (error) {
+      console.error('Error loading products:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Filter products by different criteria
+  const trendingProducts = products
+    .filter(p => p.rating >= 4.5)
+    .sort((a, b) => (b.reviewCount || 0) - (a.reviewCount || 0))
+
+  const bestSellers = products
+    .filter(p => (p.reviewCount || 0) > 5)
+    .sort((a, b) => (b.reviewCount || 0) - (a.reviewCount || 0))
+
+  const newArrivals = products
+    .slice()
+    .sort((a, b) => (b.id || '').localeCompare(a.id || ''))
+
+  const gamingAccessories = products
+    .filter(p => {
+      const name = p.name.toLowerCase()
+      return name.includes('gaming') || 
+             name.includes('headphone') || 
+             name.includes('mouse') || 
+             name.includes('keyboard') ||
+             name.includes('controller') ||
+             name.includes('chair')
+    })
+
+  const electronics = products
+    .filter(p => {
+      const name = p.name.toLowerCase()
+      return name.includes('cooler') || 
+             name.includes('fan') || 
+             name.includes('rgb') ||
+             name.includes('monitor') ||
+             name.includes('cable') ||
+             name.includes('adapter')
+    })
+
   return (
-    <div className="pt-16">
+    <div className="pt-16 bg-gradient-to-b from-[#0a0e1a] via-[#050810] to-[#0a0e1a]">
+      {/* Full-Width Hero Slider */}
       <HeroSection />
 
-      <section className="container py-14 md:py-20">
-        <div className="mb-8 flex items-end justify-between">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">Featured categories</h2>
-            <p className="mt-1 text-sm text-zinc-400">Shop the essentials picked by our team.</p>
+      {/* Loading State */}
+      {loading ? (
+        <div className="container py-12 md:py-16">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8"
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2.5 rounded-xl bg-gradient-to-br from-cyan-500 via-blue-500 to-purple-500 shadow-lg shadow-cyan-500/30">
+                <Loader2 className="h-5 w-5 text-white animate-spin" />
+              </div>
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight">
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500">
+                  Loading Products...
+                </span>
+              </h2>
+            </div>
+            <p className="text-cyan-200/70 ml-14">Fetching the best gaming gear for you</p>
+          </motion.div>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 md:gap-6">
+            <ProductCardSkeleton count={10} />
           </div>
         </div>
+      ) : (
+        <>
+          {/* Trending Products Section */}
+          {trendingProducts.length > 0 && (
+            <ProductSection
+              title="Trending Now"
+              description="Hot picks that gamers are loving right now"
+              products={trendingProducts}
+              icon="trending"
+            />
+          )}
 
-        <motion.div
-          initial="hidden"
-          whileInView="show"
-          viewport={{ once: true, amount: 0.2 }}
-          variants={{
-            hidden: {},
-            show: { transition: { staggerChildren: 0.06 } },
-          }}
-          className="grid grid-cols-2 gap-4 md:grid-cols-3"
-        >
-          {categories.map(({ icon: Icon, title }) => (
-            <motion.div
-              key={title}
-              variants={{
-                hidden: { opacity: 0, y: 14 },
-                show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } },
-              }}
-              whileHover={{ 
-                y: -8,
-                rotateX: 3,
-                rotateY: -3,
-                scale: 1.03,
-                transition: { type: 'spring', stiffness: 300, damping: 25, duration: 0.6 }
-              }}
-              className="card-3d group relative rounded-xl border dark:border-cyan-400/10 border-blue-200/60 bg-gradient-to-br dark:from-[#0a0e1a]/80 dark:to-[#020304]/80 from-white/70 to-white/50 p-5 shadow-lg dark:shadow-cyan-500/5 shadow-blue-500/10 backdrop-blur-sm transition-all dark:hover:border-cyan-400/50 hover:border-blue-400/80 hover:shadow-2xl dark:hover:shadow-cyan-500/30 hover:shadow-blue-500/30 cursor-pointer"
-            >
-              <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br dark:from-cyan-500/20 dark:to-blue-500/20 from-blue-100 to-indigo-100 text-cyan-100 dark:text-cyan-100 text-blue-700 shadow-lg dark:shadow-cyan-500/10 shadow-blue-500/20 ring-1 dark:ring-cyan-400/20 ring-blue-400/60 backdrop-blur-sm dark:group-hover:from-cyan-500/30 dark:group-hover:to-blue-500/30 group-hover:from-blue-200 group-hover:to-indigo-200">
-                <Icon className="h-5 w-5" />
-              </div>
-              <h3 className="text-sm font-semibold text-zinc-100 dark:text-zinc-100 text-slate-900">{title}</h3>
-              <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-400 text-slate-600">Explore {title.toLowerCase()} and more.</p>
-            </motion.div>
-          ))}
-        </motion.div>
-      </section>
+          {/* Best Sellers Section */}
+          {bestSellers.length > 0 && (
+            <ProductSection
+              title="Best Sellers"
+              description="Top-rated gaming gear with proven performance"
+              products={bestSellers}
+              icon="popular"
+            />
+          )}
 
+          {/* Gaming Accessories Section */}
+          {gamingAccessories.length > 0 && (
+            <ProductSection
+              title="Gaming Accessories"
+              description="Essential gear for the ultimate gaming experience"
+              products={gamingAccessories}
+              icon="new"
+              gradient="from-green-500 via-emerald-500 to-teal-500"
+            />
+          )}
 
-      {/* Outro Section */}
-      <section className="border-t border-zinc-800/60 py-20">
-        <div className="container text-center">
-          <h2 className="mb-3 text-2xl font-bold tracking-tight sm:text-3xl">Ready when you are.</h2>
-          <p className="mx-auto mb-6 max-w-xl text-zinc-400">Experience performance gear with immersive previews and a seamless checkout.</p>
-          <button className="inline-flex items-center justify-center rounded-lg bg-gradient-to-r dark:from-cyan-600 dark:to-blue-600 from-white/80 to-white/60 px-6 py-3 text-sm font-semibold text-white dark:text-white text-blue-700 shadow-lg dark:shadow-cyan-500/30 shadow-blue-500/30 backdrop-blur-md ring-1 dark:ring-cyan-400/40 ring-blue-400/60 hover:from-white/90 hover:to-white/70 hover:ring-blue-500/80 dark:hover:from-cyan-500 dark:hover:to-blue-500 transition-all transform hover:scale-105">
-            Get started
-          </button>
+          {/* Electronics & Tech Section */}
+          {electronics.length > 0 && (
+            <ProductSection
+              title="Gaming Electronics"
+              description="High-tech gaming equipment and peripherals"
+              products={electronics}
+              icon="electronics"
+            />
+          )}
+
+          {/* New Arrivals Section */}
+          {newArrivals.length > 0 && (
+            <ProductSection
+              title="New Arrivals"
+              description="Fresh gaming products just added to our collection"
+              products={newArrivals}
+              icon="new"
+            />
+          )}
+        </>
+      )}
+
+      {/* Enhanced CTA Section */}
+      <section className="relative border-t border-cyan-400/10 py-20 md:py-28 overflow-hidden">
+        {/* Animated Background */}
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-blue-500/5 to-purple-500/5" />
+          <motion.div
+            animate={{
+              scale: [1, 1.2, 1],
+              rotate: [0, 90, 0],
+            }}
+            transition={{
+              duration: 20,
+              repeat: Infinity,
+              ease: "linear"
+            }}
+            className="absolute -top-1/2 -right-1/4 w-96 h-96 bg-gradient-to-br from-cyan-500/10 to-blue-500/10 rounded-full blur-3xl"
+          />
+          <motion.div
+            animate={{
+              scale: [1.2, 1, 1.2],
+              rotate: [90, 0, 90],
+            }}
+            transition={{
+              duration: 20,
+              repeat: Infinity,
+              ease: "linear"
+            }}
+            className="absolute -bottom-1/2 -left-1/4 w-96 h-96 bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-full blur-3xl"
+          />
+        </div>
+
+        <div className="container relative z-10 text-center">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="mx-auto max-w-3xl"
+          >
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-cyan-500/10 to-blue-500/10 px-4 py-2 backdrop-blur-xl border border-cyan-400/20">
+              <Sparkles className="h-4 w-4 text-cyan-400" />
+              <span className="text-sm font-semibold text-cyan-300">Level Up Your Gaming</span>
+            </div>
+            
+            <h2 className="mb-4 text-3xl md:text-5xl font-bold tracking-tight">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400">
+                Ready to Dominate?
+              </span>
+            </h2>
+            
+            <p className="mx-auto mb-8 max-w-2xl text-lg text-cyan-200/70">
+              Experience gaming gear like never before with immersive 3D previews, instant checkout, and premium quality products designed for champions.
+            </p>
+            
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <Link to="/products">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 px-8 py-4 text-base font-bold text-white shadow-2xl shadow-cyan-500/50 ring-2 ring-cyan-400 backdrop-blur-sm transition-all hover:shadow-cyan-500/70"
+                >
+                  Start Shopping Now
+                </motion.button>
+              </Link>
+              
+              <Link to="/products">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="inline-flex items-center justify-center rounded-xl border-2 border-cyan-400 bg-cyan-500/10 px-8 py-4 text-base font-semibold text-cyan-100 backdrop-blur-xl transition-all hover:bg-cyan-500/20"
+                >
+                  View 3D Gallery
+                </motion.button>
+              </Link>
+            </div>
+          </motion.div>
         </div>
       </section>
+
+      {/* Scroll to Top Button */}
+      <ScrollToTop />
 
       <Footer />
     </div>

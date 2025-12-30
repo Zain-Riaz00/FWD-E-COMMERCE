@@ -6,6 +6,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useCart } from '@/context/CartContext'
 import { useAdmin } from '@/contexts/AdminContext'
 import type { Product, ColorVariant, Review } from '@/types/product'
+import { productAPI } from '@/services/api'
 // Helper to calculate average rating
 function getAverageRating(reviews: Review[]): number {
   if (!reviews.length) return 0;
@@ -254,81 +255,69 @@ export default function ProductDetailImmersive() {
 
   console.log('ProductDetailImmersive render:', { id, productData, colorVariants })
 
-  // Load variant data and its color variants from localStorage
+  // Load grandchildren (color variants) from database based on parent child ID
   useEffect(() => {
     if (!id) return
     
-    // Load color variants for this specific variant from localStorage
-    const colorStorageKey = `variant-colors-${id}`
-    const storedColors = localStorage.getItem(colorStorageKey)
-    
-    if (storedColors) {
+    const loadColorVariants = async () => {
       try {
-        const colors = JSON.parse(storedColors)
-        setColorVariants(colors)
-      } catch (error) {
-        console.error('Error loading colors:', error)
-        setColorVariants([])
-      }
-    } else {
-      // No colors yet - start empty
-      setColorVariants([])
-    }
-    
-    // Load variant details (name, price, etc.) - try to get from 3D gallery variants
-    // The variant ID format: "variant-{categoryId}-{timestamp}"
-    const parts = id.split('-')
-    let categoryId = ''
-    
-    // If ID is like "variant-shoes-123456", extract "shoes" as category ID
-    if (parts[0] === 'variant' && parts.length >= 3) {
-      categoryId = parts[1]
-    } else {
-      // Fallback - might be direct category ID
-      categoryId = parts[0]
-    }
-    
-    const variantsKey = `product-variants-${categoryId}`
-    const storedVariants = localStorage.getItem(variantsKey)
-    
-    let foundVariant = false
-    
-    if (storedVariants) {
-      try {
-        const variants = JSON.parse(storedVariants)
-        const currentVariant = variants.find((v: any) => v.id === id)
+        // Fetch all products from database
+        const allProducts = await productAPI.getAll()
+        console.log('Immersive - URL id:', id)
         
-        if (currentVariant) {
-          foundVariant = true
+        // First, find the parent (child product) to get its MongoDB _id
+        const parent = allProducts.find(p => p.id === id || p._id === id)
+        console.log('Immersive - Found parent (child):', parent)
+        
+        if (parent) {
           setProductData({
-            id: currentVariant.id,
-            name: currentVariant.name || 'Product Variant',
-            price: currentVariant.price || 0,
-            description: currentVariant.description || '',
-            imageUrl: currentVariant.imageUrl || '',
-            rating: currentVariant.rating || 4.5,
-            features: currentVariant.features || [],
+            id: parent.id,
+            _id: parent._id,
+            name: parent.name || 'Product',
+            price: parent.price || 0,
+            description: parent.description || '',
+            imageUrl: parent.imageUrl || '',
+            rating: parent.rating || 4.5,
+            features: [],
             colorVariants: [],
           })
+          
+          // Use parent's _id (MongoDB ID) for filtering grandchildren
+          const parentDbId = parent._id || parent.id
+          console.log('Immersive - Using parent DB ID:', parentDbId)
+          
+          // Filter to get only grandchildren (color variants) of this child product
+          const grandchildren = allProducts.filter(p => {
+            const matches = (p.parentId === parentDbId || p.parentId === parent.id) && p.productType === 'grandchild'
+            if (matches) {
+              console.log('Immersive - Found grandchild:', p.name, 'parentId:', p.parentId)
+            }
+            return matches
+          })
+          
+          console.log('Immersive - Total grandchildren found:', grandchildren.length)
+          
+          if (grandchildren.length > 0) {
+            // Convert grandchildren products to ColorVariant format for display
+            const variants: ColorVariant[] = grandchildren.map(gc => ({
+              color: gc.name,
+              name: gc.name,
+              imageUrl: gc.imageUrl,
+              price: gc.price
+            }))
+            setColorVariants(variants)
+          } else {
+            // No grandchildren found - show EMPTY (don't show child product itself)
+            setColorVariants([])
+          }
         }
       } catch (error) {
-        console.error('Error loading variant data:', error)
+        console.error('Error loading color variants:', error)
+        setColorVariants([])
       }
     }
     
-    // If variant not found, create a default product data
-    if (!foundVariant) {
-      setProductData({
-        id: id,
-        name: 'Product Variant',
-        price: 0,
-        description: 'Add color variants to customize this product',
-        imageUrl: '',
-        rating: 4.5,
-        features: [],
-        colorVariants: [],
-      })
-    }
+    loadColorVariants()
   }, [id])
   
   // NOTE: We don't auto-save on every colorVariants change because it causes issues
@@ -391,7 +380,7 @@ export default function ProductDetailImmersive() {
     navigate(-1)
   }
 
-  function handleSaveColors(newColors: ColorVariant[]) {
+  async function handleSaveColors(newColors: ColorVariant[]) {
     console.log('handleSaveColors called with:', newColors)
     
     // If colors are being reduced, show shatter effect
@@ -400,11 +389,72 @@ export default function ProductDetailImmersive() {
       setTimeout(() => setShowShatterEffect(false), 1000)
     }
     
-    // Save to localStorage immediately
-    if (id) {
-      const colorStorageKey = `variant-colors-${id}`
-      localStorage.setItem(colorStorageKey, JSON.stringify(newColors))
-      console.log('Saved colors to localStorage:', colorStorageKey)
+    // Save color variants as grandchild products to database
+    if (id && productData) {
+      try {
+        // Use productData's _id (MongoDB ID) as the parentId for grandchildren
+        const parentDbId = productData._id || productData.id
+        console.log('Saving grandchildren with parentId:', parentDbId)
+        
+        // Get all existing products
+        const allProducts = await productAPI.getAll()
+        
+        // Find existing grandchildren for this child product (check both IDs)
+        const existingGrandchildren = allProducts.filter(
+          p => (p.parentId === parentDbId || p.parentId === productData.id) && p.productType === 'grandchild'
+        )
+        console.log('Existing grandchildren:', existingGrandchildren.length)
+        
+        // Delete grandchildren that are no longer in newColors
+        for (const existing of existingGrandchildren) {
+          const stillExists = newColors.some(c => c.name === existing.name)
+          if (!stillExists && existing._id) {
+            await productAPI.delete(existing._id)
+            console.log('Deleted grandchild:', existing.name)
+          }
+        }
+        
+        // Update or create grandchildren from newColors
+        for (const colorVariant of newColors) {
+          // Check if this color already exists as a grandchild
+          const existingGrandchild = existingGrandchildren.find(
+            g => g.name === colorVariant.name
+          )
+          
+          const grandchildData = {
+            name: colorVariant.name,
+            price: colorVariant.price || productData?.price || 0,
+            description: productData?.description || `${colorVariant.name} variant`,
+            imageUrl: colorVariant.imageUrl,
+            rating: productData?.rating || 4.5,
+            category: productData?.category,
+            parentId: parentDbId, // Use parent's DB ID
+            productType: 'grandchild' as const,
+            stock: 100,
+          }
+          
+          console.log('Saving grandchild with data:', grandchildData)
+          
+          if (existingGrandchild?._id) {
+            // Update existing grandchild
+            await productAPI.update(existingGrandchild._id, {
+              ...existingGrandchild,
+              ...grandchildData,
+            })
+            console.log('Updated grandchild:', colorVariant.name)
+          } else {
+            // Create new grandchild
+            const created = await productAPI.create(grandchildData)
+            console.log('Created grandchild:', colorVariant.name, 'with parentId:', created.parentId)
+          }
+        }
+        
+        console.log('Successfully saved all color variants to database')
+      } catch (error) {
+        console.error('Error saving color variants to database:', error)
+        alert('Failed to save color variants. Please try again.')
+        return
+      }
     }
     
     // Update state
@@ -713,41 +763,36 @@ export default function ProductDetailImmersive() {
 
             {/* Action buttons - Compact */}
             <div className="pt-3 space-y-2">
-              {isAdmin && (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      setEditingProduct(currentProduct)
-                      setIsEditModalOpen(true)
-                    }}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-blue-500/30 dark:bg-blue-500/30 bg-white/80 px-4 py-2 text-sm font-semibold text-blue-100 dark:text-blue-100 text-blue-700 ring-1 ring-inset dark:ring-blue-400/50 ring-blue-500/60 transition hover:bg-blue-500/40 dark:hover:bg-blue-500/40 hover:bg-white/90 hover:scale-105"
-                  >
-                    <Edit2 className="h-3.5 w-3.5" />
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => setIsColorModalOpen(true)}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-purple-500/30 dark:bg-purple-500/30 bg-white/80 px-4 py-2 text-sm font-semibold text-purple-100 dark:text-purple-100 text-purple-700 ring-1 ring-inset dark:ring-purple-400/50 ring-purple-500/60 transition hover:bg-purple-500/40 dark:hover:bg-purple-500/40 hover:bg-white/90 hover:scale-105"
-                  >
-                    <Palette className="h-3.5 w-3.5" />
-                    Colors ({colorVariants.length})
-                  </button>
-                </div>
-              )}
-              <div className="flex gap-2">
+              {/* Add/Edit Colors button - Always visible */}
+              <button
+                onClick={() => setIsColorModalOpen(true)}
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-purple-500/30 to-indigo-500/30 backdrop-blur-xl px-4 py-2.5 text-sm font-semibold text-cyan-100 ring-1 ring-inset ring-purple-400/50 shadow-lg shadow-purple-500/20 transition hover:from-purple-500/40 hover:to-indigo-500/40 hover:ring-purple-300/60 hover:shadow-purple-500/30 hover:scale-105"
+              >
+                <Palette className="h-4 w-4" />
+                {colorVariants.length > 0 ? `Edit Colors (${colorVariants.length})` : 'Add Colors'}
+              </button>
+              <div className="flex flex-row gap-2">
                 <button
                   onClick={handleAddToCart}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-cyan-500/30 px-4 py-2 text-sm font-semibold text-cyan-100 ring-1 ring-inset ring-cyan-400/50 transition hover:bg-cyan-500/40"
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-cyan-500/30 to-blue-500/30 backdrop-blur-xl px-3 py-2 text-xs font-semibold text-cyan-100 ring-1 ring-inset ring-cyan-400/50 shadow-lg shadow-cyan-500/20 transition hover:from-cyan-500/40 hover:to-blue-500/40 hover:ring-cyan-300/60 hover:shadow-cyan-500/30 hover:scale-105 whitespace-nowrap"
                 >
-                  <ShoppingCart className="h-3.5 w-3.5" />
-                  Add to Cart
+                  <ShoppingCart className="h-3.5 w-3.5 flex-shrink-0" />
+                  <span>Add to Cart</span>
                 </button>
                 <button
-                  onClick={handleAddToCart}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-cyan-500/30 px-4 py-2 text-sm font-semibold text-cyan-100 ring-1 ring-inset ring-cyan-400/50 transition hover:bg-cyan-500/40"
+                  onClick={() => {
+                    handleAddToCart()
+                    navigate('/checkout', {
+                      state: {
+                        product: currentVariant,
+                        quantity: 1
+                      }
+                    })
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-purple-500/30 to-indigo-500/30 backdrop-blur-xl px-3 py-2 text-xs font-semibold text-cyan-100 ring-1 ring-inset ring-purple-400/50 shadow-lg shadow-purple-500/20 transition hover:from-purple-500/40 hover:to-indigo-500/40 hover:ring-purple-300/60 hover:shadow-purple-500/30 hover:scale-105 whitespace-nowrap"
                 >
-                  <ShoppingCart className="h-3.5 w-3.5" />
-                  Shop Now
+                  <ShoppingCart className="h-3.5 w-3.5 flex-shrink-0" />
+                  <span>Buy Now</span>
                 </button>
               </div>
             </div>
