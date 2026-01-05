@@ -2,25 +2,15 @@ import { useCart } from '@/context/CartContext'
 import QuantitySelector from '@/components/products/QuantitySelector'
 import { Button } from '@/components/ui/button'
 import { Link, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import { ArrowLeft, Eye } from 'lucide-react'
-import { useState, useEffect } from 'react'
-import LoadingOverlay from '@/components/ui/LoadingOverlay'
+import { useState } from 'react'
 
 export default function CartPage() {
   const { items, totalPrice, totalQuantity, updateQuantity, removeItem, clear } = useCart()
   const navigate = useNavigate()
   const [colorSelections, setColorSelections] = useState<Record<string, string>>({})
-  const [isLoading, setIsLoading] = useState(true)
 
   const availableColors = ['Black', 'White', 'Blue', 'Red', 'Green']
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false)
-    }, 800)
-    return () => clearTimeout(timer)
-  }, [])
 
   function handleColorChange(productId: string, newColor: string) {
     setColorSelections(prev => ({ ...prev, [productId]: newColor }))
@@ -35,7 +25,6 @@ export default function CartPage() {
 
   return (
     <>
-      <LoadingOverlay isVisible={isLoading} text="Loading Cart" />
       <section className="container pt-16 py-10">
       {/* Back button */}
       <button

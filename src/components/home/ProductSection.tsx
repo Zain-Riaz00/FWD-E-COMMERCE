@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion'
 import { useState } from 'react'
 import { Sparkles, TrendingUp, Zap, ShoppingCart, Eye } from 'lucide-react'
 import type { Product } from '@/types/product'
@@ -49,15 +48,11 @@ export default function ProductSection({
   }
 
   return (
-    <section className="container py-12 md:py-16">
+    <section 
+      className="container py-12 md:py-16"
+    >
       {/* Section Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.6 }}
-        className="mb-8 md:mb-12"
-      >
+      <div className="mb-8 md:mb-12">
         <div className="flex items-center gap-3 mb-3">
           <div className={`p-2.5 rounded-xl bg-gradient-to-br ${gradientClass} shadow-lg shadow-cyan-500/30`}>
             <Icon className="h-5 w-5 text-white" />
@@ -71,19 +66,10 @@ export default function ProductSection({
         {description && (
           <p className="text-cyan-200/70 max-w-2xl ml-14">{description}</p>
         )}
-      </motion.div>
+      </div>
 
-      {/* Products Grid */}
-      <motion.div
-        initial="hidden"
-        whileInView="show"
-        viewport={{ once: true, amount: 0.1 }}
-        variants={{
-          hidden: {},
-          show: { transition: { staggerChildren: 0.08 } },
-        }}
-        className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
-      >
+      {/* Products Grid - No scroll animations */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
         {products.slice(0, 12).map((product) => (
           <ProductCard 
             key={product.id} 
@@ -91,7 +77,7 @@ export default function ProductSection({
             onClick={() => handleProductClick(product)}
           />
         ))}
-      </motion.div>
+      </div>
 
       {/* Color Variant Modal */}
       {selectedProduct && (
@@ -107,33 +93,19 @@ export default function ProductSection({
 
 function ProductCard({ product, onClick }: { product: Product; onClick: () => void }) {
   return (
-    <motion.div
-      variants={{
-        hidden: { opacity: 0, y: 20, scale: 0.95 },
-        show: { 
-          opacity: 1, 
-          y: 0, 
-          scale: 1,
-          transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] }
-        },
-      }}
-      whileHover={{ 
-        y: -6,
-        scale: 1.02,
-        transition: { type: 'spring', stiffness: 400, damping: 20 }
-      }}
-      className="group relative cursor-pointer"
+    <div
+      className="group relative cursor-pointer hover:-translate-y-1 transition-transform duration-150"
       onClick={onClick}
     >
       {/* Card Container - Glassmorphic */}
-      <div className="relative overflow-hidden rounded-xl border border-cyan-400/10 bg-gradient-to-br from-[#0a0e1a]/90 to-[#020304]/90 backdrop-blur-xl shadow-lg shadow-cyan-500/5 transition-all group-hover:border-cyan-400/30 group-hover:shadow-xl group-hover:shadow-cyan-500/10">
+      <div className="relative overflow-hidden rounded-xl border border-cyan-400/10 bg-gradient-to-br from-[#0a0e1a]/90 to-[#020304]/90 backdrop-blur-xl shadow-lg shadow-cyan-500/5 group-hover:border-cyan-400/30 group-hover:shadow-xl group-hover:shadow-cyan-500/10">
         
         {/* Image Container */}
         <div className="relative aspect-square overflow-hidden bg-gradient-to-br from-zinc-900/50 to-zinc-950/50">
           <img
             src={product.imageUrl}
             alt={product.name}
-            className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+            className="h-full w-full object-cover"
             loading="lazy"
           />
           
@@ -149,7 +121,7 @@ function ProductCard({ product, onClick }: { product: Product; onClick: () => vo
 
         {/* Product Info */}
         <div className="p-3">
-          <h3 className="mb-2 font-bold text-sm text-cyan-50 line-clamp-2 group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-cyan-300 group-hover:to-blue-300 transition-all">
+          <h3 className="mb-2 font-bold text-sm text-cyan-50 line-clamp-2">
             {product.name}
           </h3>
           
@@ -185,6 +157,6 @@ function ProductCard({ product, onClick }: { product: Product; onClick: () => vo
         {/* Glassmorphic Border Glow */}
         <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-inset ring-white/5" />
       </div>
-    </motion.div>
+    </div>
   )
 }

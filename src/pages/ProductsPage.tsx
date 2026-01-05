@@ -1,4 +1,5 @@
 import ProductCard from '@/components/products/ProductCard'
+import { ColorVariantModal } from '@/components/products/ColorVariantModal'
 import EditProductModal from '@/components/admin/EditProductModal'
 import { CategoryManagementModal } from '@/components/admin/CategoryManagementModal'
 import type { Product, Category } from '@/types/product'
@@ -6,11 +7,11 @@ import { useEffect, useRef, useState, useMemo } from 'react'
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Plus, Folder, Filter, Grid, List } from 'lucide-react'
+import { ArrowLeft, Plus, Folder, Filter, Grid, List, Eye } from 'lucide-react'
 import { useAdmin } from '@/contexts/AdminContext'
 import { motion } from 'framer-motion'
 import { getProductPlaceholder } from '@/utils/placeholderImages'
-import { productAPI } from '@/services/api'
+import { productAPI, categoryAPI } from '@/services/api'
 
 export default function ProductsPage() {
   const gridRef = useRef<HTMLDivElement | null>(null)
@@ -24,6 +25,9 @@ export default function ProductsPage() {
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedChildProduct, setSelectedChildProduct] = useState<Product | null>(null)
+  const [isColorModalOpen, setIsColorModalOpen] = useState(false)
+  const [childProducts, setChildProducts] = useState<Product[]>([])
   const { isAdmin } = useAdmin()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -161,15 +165,31 @@ export default function ProductsPage() {
       // Second rule: If no parentId, include if it's marked as parent OR has no type (legacy)
       return !p.productType || p.productType === 'parent'
     })
+    // Also get child products for "All Products" view
+    const children = data.filter(p => p.productType === 'child')
     console.log('Filtered parent products:', parentProducts.length, parentProducts)
+    console.log('Filtered child products:', children.length, children)
     setProducts(parentProducts)
+    setChildProducts(children)
     setLoading(false)
   }
 
   // Load products on component mount and refresh
   useEffect(() => {
     loadProducts()
+    loadCategories()
   }, [])
+
+  // Load categories from MongoDB
+  const loadCategories = async () => {
+    try {
+      const data = await categoryAPI.getAll()
+      console.log('Loaded categories:', data.length, data)
+      setCategories(data)
+    } catch (error) {
+      console.error('Error loading categories:', error)
+    }
+  }
 
   useEffect(() => {
     if (loading || products.length === 0) return
@@ -199,7 +219,8 @@ export default function ProductsPage() {
   }, [loading, products, viewMode])
 
   return (
-    <section className="container pt-16 py-10">
+    <section className="min-h-screen pt-16 py-10 w-full px-4 sm:px-6 lg:px-8 bg-[#050810] dark:bg-[#050810]">
+      <div className="w-full">
       {/* Back button */}
       <button
         onClick={() => navigate(-1)}
@@ -278,11 +299,11 @@ export default function ProductsPage() {
           )}
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-        {/* Sticky vertical filter sidebar */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-6">
+        {/* Sticky vertical filter sidebar - narrower */}
         <aside
           ref={filtersRef}
-          className="filter-sidebar lg:col-span-1 lg:sticky lg:top-20 h-max rounded-xl p-4"
+          className="filter-sidebar lg:col-span-1 lg:sticky lg:top-20 h-max rounded-xl p-3"
           style={{
             background:
               'linear-gradient(180deg, rgba(10,10,14,0.9) 0%, rgba(6,8,16,0.9) 100%), radial-gradient(circle at 20% 0%, rgba(0,255,209,0.06), transparent 40%), radial-gradient(circle at 100% 50%, rgba(255,87,51,0.04), transparent 40%)',
@@ -344,7 +365,7 @@ export default function ProductsPage() {
           </ul>
         </aside>
         {/* Products grid */}
-        <div className="lg:col-span-4">
+        <div className="lg:col-span-5">
           {viewMode === 'grouped' ? (
             /* Grouped by Category View */
             <div className="space-y-12">
@@ -409,23 +430,49 @@ export default function ProductsPage() {
               )}
             </div>
           ) : (
-            /* All Products View (with filter) */
+            /* All Products View - Show child products with color variant modal */
             <>
-              <div ref={gridRef} className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
-                {filteredProducts.map((p) => (
-                  <div key={p.id} className="product-card will-change-transform">
-                    <ProductCard
-                      product={p}
-                      onEdit={handleEditProduct}
-                      onDelete={handleDeleteProduct}
-                    />
+              {/* When no category selected (All Products) - show child products */}
+              {!selectedCategory ? (
+                <>
+                  <div ref={gridRef} className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                    {childProducts.map((p) => (
+                      <ChildProductCard
+                        key={p.id}
+                        product={p}
+                        onClick={() => {
+                          setSelectedChildProduct(p)
+                          setIsColorModalOpen(true)
+                        }}
+                      />
+                    ))}
                   </div>
-                ))}
-              </div>
-              {filteredProducts.length === 0 && (
-                <div className="text-center py-12 text-gray-400">
-                  <p>No products found in this category.</p>
-                </div>
+                  {childProducts.length === 0 && (
+                    <div className="text-center py-12 text-gray-400">
+                      <p>No products available.</p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                /* When category is selected - show parent products with 3D gallery */
+                <>
+                  <div ref={gridRef} className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+                    {filteredProducts.map((p) => (
+                      <div key={p.id} className="product-card will-change-transform">
+                        <ProductCard
+                          product={p}
+                          onEdit={handleEditProduct}
+                          onDelete={handleDeleteProduct}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  {filteredProducts.length === 0 && (
+                    <div className="text-center py-12 text-gray-400">
+                      <p>No products found in this category.</p>
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}
@@ -448,8 +495,92 @@ export default function ProductsPage() {
         initialCategories={categories}
         onSaveCategories={setCategories}
       />
+
+      {/* Color Variant Modal for child products */}
+      {selectedChildProduct && (
+        <ColorVariantModal
+          isOpen={isColorModalOpen}
+          onClose={() => {
+            setIsColorModalOpen(false)
+            setSelectedChildProduct(null)
+          }}
+          childProduct={selectedChildProduct}
+        />
+      )}
       </>
       )}
+      </div>
     </section>
+  )
+}
+
+// Child Product Card - like homepage, shows color variants on click
+function ChildProductCard({ product, onClick }: { product: Product; onClick: () => void }) {
+  return (
+    <div
+      className="group relative cursor-pointer hover:-translate-y-1 transition-transform duration-150"
+      onClick={onClick}
+    >
+      {/* Card Container - Glassmorphic */}
+      <div className="relative overflow-hidden rounded-xl border border-cyan-400/10 bg-gradient-to-br from-[#0a0e1a]/90 to-[#020304]/90 backdrop-blur-xl shadow-lg shadow-cyan-500/5 group-hover:border-cyan-400/30 group-hover:shadow-xl group-hover:shadow-cyan-500/10">
+        
+        {/* Image Container */}
+        <div className="relative aspect-square overflow-hidden bg-gradient-to-br from-zinc-900/50 to-zinc-950/50">
+          <img
+            src={product.imageUrl}
+            alt={product.name}
+            className="h-full w-full object-cover"
+            loading="lazy"
+          />
+          
+          {/* Gradient Overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0a0e1a] via-transparent to-transparent opacity-60" />
+          
+          {/* 3D View Badge */}
+          <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-gradient-to-r from-cyan-500/20 to-blue-500/20 px-2 py-1 backdrop-blur-xl border border-cyan-400/30 shadow-lg shadow-cyan-500/20">
+            <Eye className="h-2.5 w-2.5 text-cyan-300" />
+            <span className="text-[10px] font-bold text-cyan-100">3D</span>
+          </div>
+        </div>
+
+        {/* Product Info */}
+        <div className="p-3">
+          <h3 className="mb-2 font-bold text-sm text-cyan-50 line-clamp-2">
+            {product.name}
+          </h3>
+          
+          {/* Rating */}
+          {product.rating > 0 && (
+            <div className="mb-2 flex items-center gap-1">
+              {[...Array(5)].map((_, i) => (
+                <svg
+                  key={i}
+                  className={`h-2.5 w-2.5 ${
+                    i < Math.floor(product.rating)
+                      ? 'text-yellow-400 fill-yellow-400'
+                      : 'text-gray-600 fill-gray-600'
+                  }`}
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                >
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+              ))}
+              <span className="ml-0.5 text-[10px] text-cyan-300/70">
+                ({product.reviewCount || 0})
+              </span>
+            </div>
+          )}
+
+          {/* View Hint */}
+          <div className="text-center">
+            <span className="text-[10px] text-cyan-300/70">Click to view colors</span>
+          </div>
+        </div>
+
+        {/* Glassmorphic Border Glow */}
+        <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-inset ring-white/5" />
+      </div>
+    </div>
   )
 }

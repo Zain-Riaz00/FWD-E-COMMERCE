@@ -1,9 +1,9 @@
-import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import type { Product } from '@/types/product'
 import { StarRating } from '@/components/ui/StarRating'
 import { useAdmin } from '@/contexts/AdminContext'
-import { Edit2, Trash2, Plus, Minus } from 'lucide-react'
+import { useWishlist } from '@/context/WishlistContext'
+import { Edit2, Trash2, Plus, Minus, Heart } from 'lucide-react'
 import { useState } from 'react'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 
@@ -17,11 +17,23 @@ type Props = {
 export default function ProductCard({ product, onEdit, onDelete, onUpdateQuantity }: Props) {
   const navigate = useNavigate()
   const { isAdmin } = useAdmin()
+  const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist()
   const [quantity, setQuantity] = useState(10) // Mock quantity
   const [confirmDelete, setConfirmDelete] = useState<{ show: boolean; productId: string | null }>({ 
     show: false, 
     productId: null 
   })
+  
+  const inWishlist = isInWishlist(product.id)
+
+  const handleWishlistToggle = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (inWishlist) {
+      removeFromWishlist(product.id)
+    } else {
+      addToWishlist(product)
+    }
+  }
 
   const handleQuantityChange = (change: number) => {
     const newQty = Math.max(0, quantity + change)
@@ -41,42 +53,49 @@ export default function ProductCard({ product, onEdit, onDelete, onUpdateQuantit
   }
 
   return (
-    <motion.div
-      whileHover={{ y: -8, rotateX: 2, rotateY: -2, scale: 1.02 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 25, duration: 0.6 }}
-      className="card-3d group relative overflow-hidden rounded-xl bg-gradient-to-br from-[#0a0e1a]/70 to-[#020304]/70 p-3 shadow-lg shadow-cyan-500/5 ring-1 ring-cyan-400/10 backdrop-blur-sm hover:ring-cyan-400/30 hover:shadow-2xl hover:shadow-cyan-500/30"
+    <div
+      className="card-3d group relative overflow-hidden rounded-xl bg-gradient-to-br from-[#0a0e1a]/70 to-[#020304]/70 p-3 shadow-lg shadow-cyan-500/5 ring-1 ring-cyan-400/10 backdrop-blur-sm hover:ring-cyan-400/30 hover:-translate-y-1 transition-transform duration-150"
       style={{
         boxShadow:
           '0 0 0 1px rgba(0,255,255,0.08), inset 0 0 0 1px rgba(255,255,255,0.02)',
       }}
     >
+      {/* Wishlist Button - Top Left Corner */}
+      <button
+        onClick={handleWishlistToggle}
+        className={`absolute top-2 left-2 z-10 rounded-full p-2 backdrop-blur-md shadow-lg transition-all ${
+          inWishlist 
+            ? 'bg-pink-500/30 ring-1 ring-pink-400/50 text-pink-400' 
+            : 'bg-black/30 ring-1 ring-white/20 text-white/70 hover:text-pink-400 hover:bg-pink-500/20'
+        }`}
+        title={inWishlist ? 'Remove from Wishlist' : 'Add to Wishlist'}
+      >
+        <Heart className={`w-4 h-4 ${inWishlist ? 'fill-current' : ''}`} />
+      </button>
+
       {/* Admin Controls - Top Right Corner */}
       {isAdmin && (
         <div className="absolute top-2 right-2 z-10 flex gap-1">
-          <motion.button
-            whileHover={{ scale: 1.15, y: -2 }}
-            whileTap={{ scale: 0.9 }}
+          <button
             onClick={(e) => {
               e.stopPropagation()
               onEdit?.(product)
             }}
-            className="rounded-lg bg-white/40 dark:bg-blue-500/30 border border-white/10 dark:border-blue-400/40 p-1.5 backdrop-blur-md shadow-lg hover:bg-white/50 dark:hover:bg-blue-500/40 hover:shadow-blue-500/50 transition-all duration-300"
+            className="rounded-lg bg-white/40 dark:bg-blue-500/30 border border-white/10 dark:border-blue-400/40 p-1.5 backdrop-blur-md shadow-lg hover:bg-white/50 dark:hover:bg-blue-500/40"
             title="Edit Product"
           >
             <Edit2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-300" />
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.15, y: -2 }}
-            whileTap={{ scale: 0.9 }}
+          </button>
+          <button
             onClick={(e) => {
               e.stopPropagation()
               handleDeleteClick(product.id)
             }}
-            className="rounded-lg bg-white/40 dark:bg-red-500/30 border border-white/10 dark:border-red-400/40 p-1.5 backdrop-blur-md shadow-lg hover:bg-white/50 dark:hover:bg-red-500/40 hover:shadow-red-500/50 transition-all duration-300"
+            className="rounded-lg bg-white/40 dark:bg-red-500/30 border border-white/10 dark:border-red-400/40 p-1.5 backdrop-blur-md shadow-lg hover:bg-white/50 dark:hover:bg-red-500/40"
             title="Delete Product"
           >
             <Trash2 className="w-3.5 h-3.5 text-red-600 dark:text-red-300" />
-          </motion.button>
+          </button>
         </div>
       )}
 
@@ -85,18 +104,10 @@ export default function ProductCard({ product, onEdit, onDelete, onUpdateQuantit
           <img
             src={product.imageUrl}
             alt={product.name}
-            className="h-full w-full origin-center transform object-cover transition-transform duration-300 ease-out group-hover:scale-105"
+            className="h-full w-full origin-center object-cover"
             loading="lazy"
           />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-          {/* Neon Accent thick animated border glow on hover */}
-          <div
-            className="pointer-events-none pulse-glow absolute inset-0 rounded-lg opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-            style={{
-              boxShadow:
-                '0 0 16px 2px rgba(0,255,255,0.25), 0 0 36px 8px rgba(0,255,209,0.25), 0 0 64px 18px rgba(0,255,255,0.2)',
-            }}
-          />
         </div>
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1">
@@ -116,44 +127,31 @@ export default function ProductCard({ product, onEdit, onDelete, onUpdateQuantit
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs text-cyan-300/70 dark:text-cyan-300/70 text-slate-900">Stock:</span>
             <div className="flex items-center gap-2">
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
+              <button
                 onClick={(e) => {
                   e.stopPropagation()
                   handleQuantityChange(-1)
                 }}
-                className="rounded bg-white/40 dark:bg-red-500/30 border border-white/10 dark:border-red-400/40 p-1 backdrop-blur-md hover:bg-white/50 dark:hover:bg-red-500/40 transition-all"
+                className="rounded bg-white/40 dark:bg-red-500/30 border border-white/10 dark:border-red-400/40 p-1 backdrop-blur-md hover:bg-white/50 dark:hover:bg-red-500/40"
               >
                 <Minus className="w-3 h-3 text-red-600 dark:text-red-300" />
-              </motion.button>
+              </button>
               <span className="text-sm font-semibold text-cyan-100 min-w-[2rem] text-center">
                 {quantity}
               </span>
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
+              <button
                 onClick={(e) => {
                   e.stopPropagation()
                   handleQuantityChange(1)
                 }}
-                className="rounded bg-white/40 dark:bg-green-500/30 border border-white/10 dark:border-green-400/40 p-1 backdrop-blur-md hover:bg-white/50 dark:hover:bg-green-500/40 transition-all"
+                className="rounded bg-white/40 dark:bg-green-500/30 border border-white/10 dark:border-green-400/40 p-1 backdrop-blur-md hover:bg-white/50 dark:hover:bg-green-500/40"
               >
                 <Plus className="w-3 h-3 text-green-600 dark:text-green-300" />
-              </motion.button>
+              </button>
             </div>
           </div>
         </div>
       )}
-
-      {/* Card outer neon glow on hover */}
-      <div
-        className="pointer-events-none pulse-glow absolute inset-0 rounded-xl opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-        style={{
-          boxShadow:
-            '0 0 18px 2px rgba(0,255,255,0.18), 0 0 42px 10px rgba(0,255,209,0.18), 0 0 80px 24px rgba(0,255,255,0.14)',
-        }}
-      />
 
       {/* Confirm Delete Dialog */}
       <ConfirmDialog
@@ -166,6 +164,6 @@ export default function ProductCard({ product, onEdit, onDelete, onUpdateQuantit
         onConfirm={confirmDeleteProduct}
         onCancel={() => setConfirmDelete({ show: false, productId: null })}
       />
-    </motion.div>
+    </div>
   )
 }

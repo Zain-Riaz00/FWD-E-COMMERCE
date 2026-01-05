@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Users, Plus, Trash2, Mail, Lock, Shield, X, LogOut, Edit, ArrowLeft } from 'lucide-react'
+import { Users, Plus, Trash2, Mail, Lock, Shield, X, LogOut, Edit, ArrowLeft, Crown } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import CustomAlert from '../components/ui/CustomAlert'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
@@ -15,11 +15,25 @@ interface Admin {
   createdAt: string
 }
 
+// Get current logged-in user
+const getCurrentUser = () => {
+  const userStr = localStorage.getItem('user')
+  if (userStr) {
+    try {
+      return JSON.parse(userStr)
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
 export default function ManageAdminsPage() {
   const navigate = useNavigate()
   const [admins, setAdmins] = useState<Admin[]>([])
   const [isAddingAdmin, setIsAddingAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [currentUser] = useState(getCurrentUser)
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; adminId: string; adminEmail: string }>({
     isOpen: false,
     adminId: '',
@@ -59,6 +73,7 @@ export default function ManageAdminsPage() {
   }
 
   const currentPermanentAdmin = admins.find(a => a.isPermanentAdmin)
+  const isCurrentUserPermanentAdmin = currentUser?.isPermanentAdmin || currentPermanentAdmin?._id === currentUser?._id
 
   const handleTransferPermanentAdmin = async (newAdminId: string) => {
     if (!currentPermanentAdmin) {
@@ -167,12 +182,14 @@ export default function ManageAdminsPage() {
 
   const handleLogout = () => {
     localStorage.removeItem('isAdminAuthenticated')
+    localStorage.removeItem('isAdmin')
+    localStorage.removeItem('user')
     navigate('/auth')
   }
 
   return (
-    <div className="min-h-screen pt-16 pb-8 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen pt-16 pb-8 w-full">
+      <div className="w-full px-4 sm:px-6 lg:px-8">
         {/* Back Button */}
         <button
           onClick={() => navigate(-1)}
@@ -204,6 +221,33 @@ export default function ManageAdminsPage() {
             </button>
           </div>
         </motion.div>
+
+        {/* Current Admin Info Card */}
+        {currentUser && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+            className="mb-6 backdrop-blur-xl bg-gradient-to-br from-yellow-500/10 to-orange-500/10 p-4 rounded-xl border border-yellow-500/30"
+          >
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-gradient-to-br from-yellow-500/30 to-orange-500/30 rounded-xl">
+                <Crown className="w-6 h-6 text-yellow-400" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-semibold text-white">Logged in as: {currentUser.name || currentUser.email}</h3>
+                  {isCurrentUserPermanentAdmin && (
+                    <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 rounded-full text-xs font-medium border border-yellow-500/30">
+                      Permanent Admin
+                    </span>
+                  )}
+                </div>
+                <p className="text-white/60 text-sm">{currentUser.email}</p>
+              </div>
+            </div>
+          </motion.div>
+        )}
 
         {/* Stats */}
         <motion.div
@@ -284,18 +328,20 @@ export default function ManageAdminsPage() {
               <p className="text-white/40 mt-2">Click "Add New Admin" to get started</p>
             </div>
           ) : (
-            admins.map((admin, index) => (
+            admins.map((admin, index) => {
+              const isCurrentUser = currentUser && (currentUser._id === admin._id || currentUser.email === admin.email)
+              return (
               <motion.div
                 key={admin._id}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.1 * index }}
-                className="backdrop-blur-xl bg-white/5 p-4 rounded-xl border border-white/10 hover:border-purple-500/30 transition-all group"
+                className={`backdrop-blur-xl bg-white/5 p-4 rounded-xl border transition-all group ${isCurrentUser ? 'border-cyan-500/50 ring-1 ring-cyan-500/20' : 'border-white/10 hover:border-purple-500/30'}`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4 flex-1">
-                    <div className="p-2.5 bg-gradient-to-br from-purple-500/30 to-pink-500/30 rounded-lg">
-                      <Shield className="w-5 h-5 text-purple-400" />
+                    <div className={`p-2.5 rounded-lg ${isCurrentUser ? 'bg-gradient-to-br from-cyan-500/30 to-blue-500/30' : 'bg-gradient-to-br from-purple-500/30 to-pink-500/30'}`}>
+                      <Shield className={`w-5 h-5 ${isCurrentUser ? 'text-cyan-400' : 'text-purple-400'}`} />
                     </div>
                     
                     <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -303,6 +349,7 @@ export default function ManageAdminsPage() {
                         <div className="flex items-center gap-1.5 text-white/40 text-xs mb-1">
                           <Mail className="w-3.5 h-3.5" />
                           Email
+                          {isCurrentUser && <span className="ml-1 px-1.5 py-0.5 bg-cyan-500/30 text-cyan-300 rounded text-[10px]">You</span>}
                         </div>
                         <p className="text-white font-medium text-sm break-all">{admin.email}</p>
                       </div>
@@ -359,6 +406,11 @@ export default function ManageAdminsPage() {
                     <span>Created: {new Date(admin.createdAt).toLocaleDateString()}</span>
                   </div>
                   <div className="flex items-center gap-2">
+                    {isCurrentUser && (
+                      <div className="px-2.5 py-0.5 bg-cyan-500/20 text-cyan-400 rounded-full text-xs font-medium border border-cyan-500/30">
+                        Current Session
+                      </div>
+                    )}
                     {admin.isPermanentAdmin && (
                       <div className="px-2.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded-full text-xs font-medium border border-yellow-500/30">
                         Permanent Admin
@@ -370,7 +422,8 @@ export default function ManageAdminsPage() {
                   </div>
                 </div>
               </motion.div>
-            ))
+              )
+            })
           )}
         </motion.div>
       </div>

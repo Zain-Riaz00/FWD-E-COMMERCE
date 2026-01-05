@@ -1,4 +1,4 @@
-import type { Product } from '@/types/product'
+import type { Product, Category } from '@/types/product'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
@@ -7,6 +7,13 @@ const mapProduct = (product: any): Product => ({
   ...product,
   id: product._id || product.id,
   _id: product._id
+})
+
+// Helper to map category
+const mapCategory = (category: any): Category => ({
+  ...category,
+  id: category._id || category.id,
+  _id: category._id
 })
 
 export const productAPI = {
@@ -90,6 +97,70 @@ export const productAPI = {
       return response.ok
     } catch (error) {
       console.error('[API] Error deleting product:', error)
+      return false
+    }
+  },
+}
+
+export const categoryAPI = {
+  // Get all categories
+  async getAll(): Promise<Category[]> {
+    try {
+      console.log('[API] Fetching categories...')
+      const response = await fetch(`${API_URL}/categories`)
+      if (!response.ok) throw new Error('Failed to fetch categories')
+      const data = await response.json()
+      console.log(`[API] Got ${data.length} categories`)
+      return data.map(mapCategory)
+    } catch (error) {
+      console.error('[API] Error fetching categories:', error)
+      return []
+    }
+  },
+
+  // Create category
+  async create(categoryData: Partial<Category>): Promise<Category | null> {
+    try {
+      const response = await fetch(`${API_URL}/categories`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(categoryData),
+      })
+      if (!response.ok) throw new Error('Failed to create category')
+      const data = await response.json()
+      return mapCategory(data)
+    } catch (error) {
+      console.error('[API] Error creating category:', error)
+      return null
+    }
+  },
+
+  // Update category
+  async update(id: string, categoryData: Partial<Category>): Promise<Category | null> {
+    try {
+      const response = await fetch(`${API_URL}/categories/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(categoryData),
+      })
+      if (!response.ok) throw new Error('Failed to update category')
+      const data = await response.json()
+      return mapCategory(data)
+    } catch (error) {
+      console.error('[API] Error updating category:', error)
+      return null
+    }
+  },
+
+  // Delete category
+  async delete(id: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${API_URL}/categories/${id}`, {
+        method: 'DELETE',
+      })
+      return response.ok
+    } catch (error) {
+      console.error('[API] Error deleting category:', error)
       return false
     }
   },

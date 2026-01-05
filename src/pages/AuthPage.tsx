@@ -1,23 +1,12 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Mail, Lock, User, Shield, Sparkles, Zap, Fingerprint } from 'lucide-react'
 import { useAdmin } from '@/contexts/AdminContext'
-import LoadingOverlay from '@/components/ui/LoadingOverlay'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import { setGuestUser } from '@/utils/guestUser'
 
 type FormType = 'login' | 'signup' | 'admin'
-
-// Generate random values outside component to avoid purity issues
-const generateParticlePositions = () => 
-  [...Array(8)].map(() => ({
-    left: Math.random() * 100,
-    xOffset: (Math.random() - 0.5) * 50,
-    delay: Math.random() * 4
-  }))
-
-const particlePositions = generateParticlePositions()
 
 export default function AuthPage() {
   const navigate = useNavigate()
@@ -26,8 +15,6 @@ export default function AuthPage() {
   const [isExpanded, setIsExpanded] = useState(false)
   const [showForgotPassword, setShowForgotPassword] = useState(false)
   const isReturningUser = localStorage.getItem('hasVisitedAuth') === 'true'
-  const [isSplashVisible, setIsSplashVisible] = useState(false)
-  const splashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
@@ -42,12 +29,6 @@ export default function AuthPage() {
   useEffect(() => {
     if (!localStorage.getItem('hasVisitedAuth')) {
       localStorage.setItem('hasVisitedAuth', 'true')
-    }
-  }, [])
-
-  useEffect(() => () => {
-    if (splashTimerRef.current) {
-      clearTimeout(splashTimerRef.current)
     }
   }, [])
 
@@ -116,14 +97,8 @@ export default function AuthPage() {
 
         adminLogout()
 
-        // Redirect after short delay
-        setTimeout(() => {
-          setIsSplashVisible(true)
-          setTimeout(() => {
-            navigate('/')
-            setIsSplashVisible(false)
-          }, 1500)
-        }, 1000)
+        // Redirect immediately - no slow splash
+        navigate('/')
 
       } else {
         // Login (regular or admin)
@@ -163,14 +138,8 @@ export default function AuthPage() {
           adminLogout()
         }
 
-        // Redirect after short delay
-        setTimeout(() => {
-          setIsSplashVisible(true)
-          setTimeout(() => {
-            navigate('/')
-            setIsSplashVisible(false)
-          }, 1500)
-        }, 1000)
+        // Redirect immediately - no slow splash
+        navigate('/')
       }
     } catch (error) {
       console.error('Authentication error:', error)
@@ -195,6 +164,8 @@ export default function AuthPage() {
   }
 
   const handleSkip = () => {
+    // Clear any existing admin state before entering guest mode
+    adminLogout()
     setGuestUser()
     navigate('/')
   }
@@ -246,69 +217,14 @@ export default function AuthPage() {
   return (
     <>
       <ThemeToggle className="fixed top-8 right-8 z-50" />
-      <LoadingOverlay isVisible={isSplashVisible} text="Launching your experience" />
       <div className="min-h-screen flex items-center justify-center p-8 relative overflow-hidden">
-      {/* PREMIUM AMBIENT BACKGROUND EFFECTS */}
-      {/* Animated Gradient Orbs */}
+      {/* Minimal Static Background Ambiance */}
+      {/* Static Gradient Orbs - No Animation */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <motion.div
-          animate={{
-            scale: [1, 1.2, 1],
-            opacity: [0.2, 0.3, 0.2],
-            x: [0, 100, 0],
-            y: [0, -50, 0],
-          }}
-          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-          className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-cyan-500/20 via-blue-500/10 to-transparent rounded-full blur-3xl"
-          style={{ willChange: 'transform' }}
-        />
-        <motion.div
-          animate={{
-            scale: [1.2, 1, 1.2],
-            opacity: [0.2, 0.3, 0.2],
-            x: [0, -80, 0],
-            y: [0, 80, 0],
-          }}
-          transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-          className="absolute top-1/3 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-purple-500/20 via-pink-500/10 to-transparent rounded-full blur-3xl"
-          style={{ willChange: 'transform' }}
-        />
-        <motion.div
-          animate={{
-            scale: [1, 1.3, 1],
-            opacity: [0.2, 0.3, 0.2],
-            x: [0, -60, 0],
-            y: [0, 100, 0],
-          }}
-          transition={{ duration: 22, repeat: Infinity, ease: "linear" }}
-          className="absolute -bottom-1/4 left-1/3 w-1/2 h-1/2 bg-gradient-to-tr from-green-500/15 via-teal-500/10 to-transparent rounded-full blur-3xl"
-          style={{ willChange: 'transform' }}
-        />
+        <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-cyan-500/15 via-blue-500/8 to-transparent rounded-full blur-3xl" />
+        <div className="absolute top-1/3 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-purple-500/15 via-pink-500/8 to-transparent rounded-full blur-3xl" />
+        <div className="absolute -bottom-1/4 left-1/3 w-1/2 h-1/2 bg-gradient-to-tr from-green-500/10 via-teal-500/6 to-transparent rounded-full blur-3xl" />
       </div>
-
-      {/* Floating Particles - REDUCED */}
-      {particlePositions.map((particle, i) => (
-        <motion.div
-          key={i}
-          initial={{ opacity: 0 }}
-          animate={{
-            opacity: [0, 0.6, 0],
-            y: [0, -150],
-            x: [0, particle.xOffset],
-          }}
-          transition={{
-            duration: 4,
-            repeat: Infinity,
-            delay: particle.delay,
-            ease: "linear"
-          }}
-          className="absolute bottom-0 w-1 h-1 bg-cyan-400/40 rounded-full"
-          style={{
-            left: `${particle.left}%`,
-            willChange: 'transform, opacity'
-          }}
-        />
-      ))}
 
       {/* Grid Pattern Overlay */}
       <div className="absolute inset-0 opacity-[0.03]" 
@@ -321,124 +237,77 @@ export default function AuthPage() {
         }}
       />
 
-      {/* Sidebar Buttons */}
+      {/* Sidebar Buttons - CSS-only transitions for 120fps */}
       <div className="fixed left-8 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-10">
         {/* Login Button */}
-        <motion.button
-          whileHover={{ scale: 1.05, x: 5 }}
-          whileTap={{ scale: 0.95 }}
+        <button
           onClick={() => handleCardClick('login')}
           className={`group relative w-16 h-16 rounded-2xl backdrop-blur-md bg-white/10 border border-white/20 
-            hover:bg-white/20 transition-all duration-200
+            hover:bg-white/20 hover:scale-105 hover:translate-x-1 active:scale-95 transition-all duration-150
             ${selectedForm === 'login' ? 'ring-2 ring-cyan-400 bg-white/20 shadow-lg shadow-cyan-500/50' : ''}`}
-          style={{ willChange: 'transform' }}
         >
-          <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+          <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-150" />
           <Lock className="w-7 h-7 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-cyan-100 drop-shadow-lg" />
-          <motion.div 
-            className="absolute -right-1 -bottom-1 w-3 h-3 bg-cyan-400 rounded-full blur-sm"
-            animate={{ opacity: selectedForm === 'login' ? [0.5, 1, 0.5] : 0 }}
-            transition={{ duration: 2, repeat: Infinity }}
-          />
-          <span className="absolute top-1/2 left-[calc(100%+0.75rem)] transform -translate-y-1/2 text-sm text-white bg-cyan-600/80 backdrop-blur-xl px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none shadow-lg shadow-cyan-500/50 ring-1 ring-white/20 z-50">Login</span>
-        </motion.button>
+          {selectedForm === 'login' && <div className="absolute -right-1 -bottom-1 w-3 h-3 bg-cyan-400 rounded-full blur-sm animate-pulse" />}
+          <span className="absolute top-1/2 left-[calc(100%+0.75rem)] transform -translate-y-1/2 text-sm text-white bg-cyan-600/80 backdrop-blur-xl px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap pointer-events-none shadow-lg shadow-cyan-500/50 ring-1 ring-white/20 z-50">Login</span>
+        </button>
 
         {/* Sign Up Button */}
-        <motion.button
-          whileHover={{ scale: 1.05, x: 5 }}
-          whileTap={{ scale: 0.95 }}
+        <button
           onClick={() => handleCardClick('signup')}
           className={`group relative w-16 h-16 rounded-2xl backdrop-blur-md bg-white/10 border border-white/20 
-            hover:bg-white/20 transition-all duration-200
+            hover:bg-white/20 hover:scale-105 hover:translate-x-1 active:scale-95 transition-all duration-150
             ${selectedForm === 'signup' ? 'ring-2 ring-green-400 bg-white/20 shadow-lg shadow-green-500/50' : ''}`}
-          style={{ willChange: 'transform' }}
         >
-          <div className="absolute inset-0 bg-gradient-to-br from-green-500/20 to-teal-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+          <div className="absolute inset-0 bg-gradient-to-br from-green-500/20 to-teal-500/20 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-150" />
           <User className="w-7 h-7 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-green-100 drop-shadow-lg" />
-          <motion.div 
-            className="absolute -right-1 -bottom-1 w-3 h-3 bg-green-400 rounded-full blur-sm"
-            animate={{ opacity: selectedForm === 'signup' ? [0.5, 1, 0.5] : 0 }}
-            transition={{ duration: 2, repeat: Infinity }}
-          />
-          <span className="absolute top-1/2 left-[calc(100%+0.75rem)] transform -translate-y-1/2 text-sm text-white bg-green-600/80 backdrop-blur-xl px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none shadow-lg shadow-green-500/50 ring-1 ring-white/20 z-50">Sign Up</span>
-        </motion.button>
+          {selectedForm === 'signup' && <div className="absolute -right-1 -bottom-1 w-3 h-3 bg-green-400 rounded-full blur-sm animate-pulse" />}
+          <span className="absolute top-1/2 left-[calc(100%+0.75rem)] transform -translate-y-1/2 text-sm text-white bg-green-600/80 backdrop-blur-xl px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap pointer-events-none shadow-lg shadow-green-500/50 ring-1 ring-white/20 z-50">Sign Up</span>
+        </button>
 
         {/* Admin Button */}
-        <motion.button
-          whileHover={{ scale: 1.05, x: 5 }}
-          whileTap={{ scale: 0.95 }}
+        <button
           onClick={() => handleCardClick('admin')}
           className={`group relative w-16 h-16 rounded-2xl backdrop-blur-md bg-white/10 border border-white/20 
-            hover:bg-white/20 transition-all duration-200
+            hover:bg-white/20 hover:scale-105 hover:translate-x-1 active:scale-95 transition-all duration-150
             ${selectedForm === 'admin' ? 'ring-2 ring-purple-400 bg-white/20 shadow-lg shadow-purple-500/50' : ''}`}
-          style={{ willChange: 'transform' }}
         >
-          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-pink-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-150" />
           <Shield className="w-7 h-7 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-purple-100 drop-shadow-lg" />
-          <motion.div 
-            className="absolute -right-1 -bottom-1 w-3 h-3 bg-purple-400 rounded-full blur-sm"
-            animate={{ opacity: selectedForm === 'admin' ? [0.5, 1, 0.5] : 0 }}
-            transition={{ duration: 2, repeat: Infinity }}
-          />
-          <span className="absolute top-1/2 left-[calc(100%+0.75rem)] transform -translate-y-1/2 text-sm text-white bg-purple-600/80 backdrop-blur-xl px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none shadow-lg shadow-purple-500/50 ring-1 ring-white/20 z-50">Admin</span>
-        </motion.button>
+          {selectedForm === 'admin' && <div className="absolute -right-1 -bottom-1 w-3 h-3 bg-purple-400 rounded-full blur-sm animate-pulse" />}
+          <span className="absolute top-1/2 left-[calc(100%+0.75rem)] transform -translate-y-1/2 text-sm text-white bg-purple-600/80 backdrop-blur-xl px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap pointer-events-none shadow-lg shadow-purple-500/50 ring-1 ring-white/20 z-50">Admin</span>
+        </button>
       </div>
 
       {/* CENTER WELCOME MESSAGE - When No Form Selected */}
       <AnimatePresence mode="wait">
         {!selectedForm && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.4 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
             className="text-center max-w-3xl"
           >
-            <motion.div
-              animate={{ 
-                scale: [1, 1.05, 1],
-                rotate: [0, 5, -5, 0]
-              }}
-              transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-              className="mb-8 inline-block"
-            >
+            <div className="mb-8 inline-block">
               <div className="relative">
                 <Sparkles className="w-32 h-32 text-cyan-400 drop-shadow-2xl" />
-                <motion.div
-                  animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0.8, 0.5] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                  className="absolute inset-0 bg-cyan-400/30 rounded-full blur-xl"
-                />
+                <div className="absolute inset-0 bg-cyan-400/20 rounded-full blur-xl animate-pulse" />
               </div>
-            </motion.div>
+            </div>
 
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="text-6xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent drop-shadow-lg"
-            >
+            <h1 className="text-6xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent drop-shadow-lg animate-fade-in">
               {isReturningUser ? 'Welcome Back' : 'Welcome to Ecom'}
-            </motion.h1>
+            </h1>
 
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4 }}
-              className="text-xl md:text-2xl text-white/80 mb-12 font-light"
-            >
+            <p className="text-xl md:text-2xl text-white/80 mb-12 font-light animate-fade-in" style={{ animationDelay: '100ms' }}>
               {isReturningUser 
                 ? 'Choose your authentication method from the sidebar'
                 : 'Get started by creating your account or signing in'}
-            </motion.p>
+            </p>
 
             {/* Feature Cards */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6 }}
-              className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-16"
-            >
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-16 animate-fade-in" style={{ animationDelay: '200ms' }}>
               <div className="backdrop-blur-xl bg-white/5 rounded-2xl p-6 border border-white/10 hover:border-cyan-400/30 transition-all group">
                 <Zap className="w-10 h-10 text-cyan-400 mb-4 group-hover:scale-110 transition-transform" />
                 <h3 className="text-white font-semibold mb-2">Lightning Fast</h3>
@@ -456,7 +325,7 @@ export default function AuthPage() {
                 <h3 className="text-white font-semibold mb-2">Premium Design</h3>
                 <p className="text-white/60 text-sm">Beautiful UI crafted with attention to detail</p>
               </div>
-            </motion.div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -465,19 +334,11 @@ export default function AuthPage() {
       <AnimatePresence>
         {showForgotPassword && (
           <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+            <div
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 animate-fade-in"
               onClick={() => setShowForgotPassword(false)}
             />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md"
-            >
+            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md animate-scale-in">
               <div className="bg-white/70 dark:bg-black/40 backdrop-blur-xl rounded-3xl p-8 shadow-2xl ring-1 ring-white/20 dark:ring-black/20 border border-white/10 dark:border-black/20">
                 <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">Reset Password</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">Enter your email to receive an OTP</p>
@@ -537,7 +398,7 @@ export default function AuthPage() {
                   </div>
                 </form>
               </div>
-            </motion.div>
+            </div>
           </>
         )}
       </AnimatePresence>

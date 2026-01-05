@@ -1,27 +1,25 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { Search, ShoppingCart, User, Menu, Shield, LogOut, Bell } from 'lucide-react'
+import { Search, ShoppingCart, User, Menu, Shield, LogOut, Bell, Heart } from 'lucide-react'
 import { useCart } from '@/context/CartContext'
+import { useWishlist } from '@/context/WishlistContext'
 import { useAdmin } from '@/contexts/AdminContext'
-import { motion } from 'framer-motion'
 import ThemeToggle from '@/components/ui/ThemeToggle'
-import LoadingOverlay from '@/components/ui/LoadingOverlay'
 import { GLOBAL_NOTIFICATION_KEY, loadGlobalNotifications } from '@/utils/notificationFeed'
 import { getUserStatus } from '@/utils/guestUser'
 import GuestRestrictionModal from '@/components/ui/GuestRestrictionModal'
 
 export default function Navbar({ onMenuToggle }: { onMenuToggle?: () => void }) {
   const [query, setQuery] = useState('')
-  const [isSplashVisible, setIsSplashVisible] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [showGuestModal, setShowGuestModal] = useState(false)
-  const splashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const navigate = useNavigate()
   const location = useLocation()
   const { totalQuantity } = useCart()
   const { isAdmin, logout } = useAdmin()
-  const [allProducts, setAllProducts] = useState<any[]>([])
+  const { items: wishlistItems } = useWishlist()
+  const [allProducts, setAllProducts] = useState<{ name: string; description?: string; category?: string }[]>([])
   const [notificationCount, setNotificationCount] = useState(0)
   const userStatus = getUserStatus()
 
@@ -31,12 +29,6 @@ export default function Navbar({ onMenuToggle }: { onMenuToggle?: () => void }) 
       .then(res => res.json())
       .then(data => setAllProducts(data))
       .catch(err => console.error('Failed to fetch products:', err))
-      
-    return () => {
-      if (splashTimerRef.current) {
-        clearTimeout(splashTimerRef.current)
-      }
-    }
   }, [])
 
   useEffect(() => {
@@ -56,7 +48,7 @@ export default function Navbar({ onMenuToggle }: { onMenuToggle?: () => void }) 
       }
     }
 
-    const handleCustom = (_event: Event) => refreshNotifications()
+    const handleCustom = () => refreshNotifications()
 
     window.addEventListener('storage', handleStorage)
     window.addEventListener('global-notifications-update', handleCustom)
@@ -117,15 +109,9 @@ export default function Navbar({ onMenuToggle }: { onMenuToggle?: () => void }) 
   }
 
   const handleLogout = () => {
-    setIsSplashVisible(true)
-    
-    const performLogout = () => {
-      logout()
-      navigate('/auth')
-      setIsSplashVisible(false)
-    }
-    
-    splashTimerRef.current = setTimeout(performLogout, 1200)
+    // Logout immediately - no slow splash
+    logout()
+    navigate('/auth')
   }
 
   const handleProfileClick = () => {
@@ -139,7 +125,6 @@ export default function Navbar({ onMenuToggle }: { onMenuToggle?: () => void }) 
 
   return (
     <>
-      <LoadingOverlay isVisible={isSplashVisible} text="Logging out..." />
     <header className="glass-navbar z-50 px-3 sm:px-4">
       <div className="mx-auto flex w-full max-w-full flex-wrap items-center gap-2 py-2 sm:gap-3 md:flex-nowrap">
         {/* Menu Button */}
@@ -224,41 +209,24 @@ export default function Navbar({ onMenuToggle }: { onMenuToggle?: () => void }) 
         </form>
 
         <nav className="order-2 ml-auto flex w-full items-center justify-end gap-1.5 sm:order-none sm:w-auto sm:gap-2 md:gap-3">
-          {/* Admin Badge - Subtle Pop + Gentle Neon Glow on Hover */}
+          {/* Admin Badge */}
           {isAdmin && (
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              whileHover={{ 
-                scale: 1.05,
-                boxShadow: '0 0 20px rgba(168, 85, 247, 0.4), 0 0 40px rgba(168, 85, 247, 0.2)'
-              }}
-              transition={{ duration: 0.2 }}
-              className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-gradient-to-r from-purple-600/30 to-pink-600/30 rounded-lg ring-1 ring-purple-400/40 cursor-default dark:from-purple-600/30 dark:to-pink-600/30 bg-purple-100/80 dark:bg-purple-600/30"
-            >
+            <div className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-gradient-to-r from-purple-600/30 to-pink-600/30 rounded-lg ring-1 ring-purple-400/40 cursor-default hover:shadow-[0_0_20px_rgba(168,85,247,0.4)] transition-shadow">
               <Shield className="h-4 w-4 text-purple-300 dark:text-purple-300 text-purple-700" />
               <span className="hidden sm:inline text-xs font-semibold text-purple-100 dark:text-purple-100 text-purple-900">ADMIN</span>
-            </motion.div>
+            </div>
           )}
 
-          {/* Logout Button - Pop + Glow on Hover */}
+          {/* Logout Button */}
           {isAdmin && !userStatus.isGuest && (
-            <motion.button
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              whileHover={{ 
-                scale: 1.05,
-                boxShadow: '0 0 20px rgba(239, 68, 68, 0.4), 0 0 40px rgba(239, 68, 68, 0.2)'
-              }}
-              whileTap={{ scale: 0.95 }}
-              transition={{ duration: 0.2 }}
+            <button
               onClick={handleLogout}
-              className="hidden md:flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-gradient-to-r from-red-600/30 to-orange-600/30 rounded-lg ring-1 ring-red-400/40 transition-colors hover:from-red-600/40 hover:to-orange-600/40 dark:from-red-600/30 dark:to-orange-600/30 bg-red-100/80 dark:bg-red-600/30"
+              className="hidden md:flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-gradient-to-r from-red-600/30 to-orange-600/30 rounded-lg ring-1 ring-red-400/40 transition-all hover:shadow-[0_0_20px_rgba(239,68,68,0.4)] hover:from-red-600/40 hover:to-orange-600/40"
               title="Logout from Admin Mode"
             >
               <LogOut className="h-4 w-4 text-red-300 dark:text-red-300 text-red-700" />
               <span className="hidden sm:inline text-xs font-medium text-red-100 dark:text-red-100 text-red-900">Logout</span>
-            </motion.button>
+            </button>
           )}
 
           <Link
@@ -271,6 +239,19 @@ export default function Navbar({ onMenuToggle }: { onMenuToggle?: () => void }) 
             {notificationCount > 0 && (
               <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-pink-500 px-1 text-[10px] font-semibold text-white shadow-sm">
                 {notificationCount}
+              </span>
+            )}
+          </Link>
+          <Link 
+            to="/wishlist" 
+            onClick={(e) => handleNavClick(e, '/wishlist')}
+            aria-label="Wishlist" 
+            className="group relative inline-flex items-center rounded-lg p-2 text-cyan-200 hover:bg-white/5 hover:text-pink-400"
+          >
+            <Heart className="h-5 w-5" />
+            {wishlistItems.length > 0 && (
+              <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-pink-500 px-1 text-[10px] font-semibold text-white shadow-sm">
+                {wishlistItems.length}
               </span>
             )}
           </Link>

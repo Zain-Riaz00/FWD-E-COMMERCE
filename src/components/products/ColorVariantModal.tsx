@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronLeft, ChevronRight, ShoppingCart, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ShoppingCart, X, Sparkles } from 'lucide-react'
 import { useCart } from '@/context/CartContext'
 import { useNavigate } from 'react-router-dom'
 import type { Product } from '@/types/product'
@@ -209,20 +209,34 @@ export function ColorVariantModal({ isOpen, onClose, childProduct }: ColorVarian
                   </div>
 
                   {/* Action buttons */}
-                  <div className="flex gap-3 mt-8">
+                  <div className="space-y-3 mt-8">
+                    {/* Immersive View Button */}
                     <button
-                      onClick={handleAddToCart}
-                      className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500/30 to-blue-500/30 backdrop-blur-xl px-6 py-4 text-base font-semibold text-cyan-100 ring-1 ring-inset ring-cyan-400/50 shadow-lg shadow-cyan-500/20 transition hover:from-cyan-500/40 hover:to-blue-500/40 hover:ring-cyan-300/60 hover:shadow-cyan-500/30 hover:scale-105"
+                      onClick={() => {
+                        onClose()
+                        navigate(`/products/immersive/${childProduct.id}`)
+                      }}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-pink-500/30 to-rose-500/30 backdrop-blur-xl px-6 py-3 text-sm font-semibold text-pink-100 ring-1 ring-inset ring-pink-400/50 shadow-lg shadow-pink-500/20 transition hover:from-pink-500/40 hover:to-rose-500/40 hover:ring-pink-300/60 hover:shadow-pink-500/30 hover:scale-[1.02]"
                     >
-                      <ShoppingCart className="h-5 w-5" />
-                      Add to Cart
+                      <Sparkles className="h-4 w-4" />
+                      Immersive 3D View
                     </button>
-                    <button
-                      onClick={handleBuyNow}
-                      className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-500/30 to-indigo-500/30 backdrop-blur-xl px-6 py-4 text-base font-semibold text-cyan-100 ring-1 ring-inset ring-purple-400/50 shadow-lg shadow-purple-500/20 transition hover:from-purple-500/40 hover:to-indigo-500/40 hover:ring-purple-300/60 hover:shadow-purple-500/30 hover:scale-105"
-                    >
-                      Buy Now
-                    </button>
+                    
+                    <div className="flex gap-3">
+                      <button
+                        onClick={handleAddToCart}
+                        className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500/30 to-blue-500/30 backdrop-blur-xl px-6 py-4 text-base font-semibold text-cyan-100 ring-1 ring-inset ring-cyan-400/50 shadow-lg shadow-cyan-500/20 transition hover:from-cyan-500/40 hover:to-blue-500/40 hover:ring-cyan-300/60 hover:shadow-cyan-500/30 hover:scale-105"
+                      >
+                        <ShoppingCart className="h-5 w-5" />
+                        Add to Cart
+                      </button>
+                      <button
+                        onClick={handleBuyNow}
+                        className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-500/30 to-indigo-500/30 backdrop-blur-xl px-6 py-4 text-base font-semibold text-cyan-100 ring-1 ring-inset ring-purple-400/50 shadow-lg shadow-purple-500/20 transition hover:from-purple-500/40 hover:to-indigo-500/40 hover:ring-purple-300/60 hover:shadow-purple-500/30 hover:scale-105"
+                      >
+                        Buy Now
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

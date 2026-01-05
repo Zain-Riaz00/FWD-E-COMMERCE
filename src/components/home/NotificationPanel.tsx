@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, BellRing, Gift, Megaphone, Package2, ShieldCheck, Sparkles, Mail } from 'lucide-react'
+import { ArrowLeft, BellRing, Gift, Megaphone, Package2, ShieldCheck, Sparkles, Mail, AlertTriangle, MessageSquare, Users, Volume2, VolumeX } from 'lucide-react'
 import type { ActivityNotification } from '@/utils/notificationFeed'
 import { GLOBAL_NOTIFICATION_KEY, combineWithSeeds, loadGlobalNotifications, markAllLiveNotificationsRead } from '@/utils/notificationFeed'
+import { useAdmin } from '@/contexts/AdminContext'
+
+// Silent mode storage key
+const SILENT_MODE_KEY = 'notification_silent_mode'
 
 const seedNotifications: ActivityNotification[] = [
   {
@@ -54,6 +58,10 @@ const typeIcon = {
   system: ShieldCheck,
   reply: BellRing,
   contact: Mail,
+  inventory: AlertTriangle,
+  feedback: MessageSquare,
+  admin_action: Users,
+  recommendation: Sparkles,
 } as const;
 
 const typeAccent: Record<string, string> = {
@@ -63,19 +71,33 @@ const typeAccent: Record<string, string> = {
   system: 'bg-indigo-500/15 text-indigo-200 border-indigo-500/40',
   reply: 'bg-pink-500/15 text-pink-200 border-pink-500/40',
   contact: 'bg-cyan-700/15 text-cyan-200 border-cyan-700/40',
+  inventory: 'bg-orange-500/15 text-orange-200 border-orange-500/40',
+  feedback: 'bg-purple-500/15 text-purple-200 border-purple-500/40',
+  admin_action: 'bg-rose-500/15 text-rose-200 border-rose-500/40',
+  recommendation: 'bg-teal-500/15 text-teal-200 border-teal-500/40',
 }
 
-const filterConfig = [
+// User filters
+const userFilterConfig = [
   { key: 'all', label: 'All', types: null },
   { key: 'order', label: 'Orders', types: ['order'] },
   { key: 'reward', label: 'Rewards', types: ['reward'] },
-  { key: 'product', label: 'Product drops', types: ['product'] },
+  { key: 'product', label: 'Product drops', types: ['product', 'recommendation'] },
   { key: 'system', label: 'Updates', types: ['system'] },
   { key: 'reply', label: 'Replies', types: ['reply'] },
-  { key: 'contact', label: 'Contact Requests', types: ['contact'] },
 ]
 
-type FilterKey = (typeof filterConfig)[number]['key']
+// Admin filters
+const adminFilterConfig = [
+  { key: 'all', label: 'All', types: null },
+  { key: 'order', label: 'Orders', types: ['order'] },
+  { key: 'inventory', label: 'Inventory', types: ['inventory'] },
+  { key: 'feedback', label: 'Feedback', types: ['feedback', 'contact'] },
+  { key: 'reply', label: 'Replies', types: ['reply'] },
+  { key: 'admin', label: 'Admin Activity', types: ['admin_action'] },
+]
+
+type FilterKey = string
 
 const buildFeed = () => combineWithSeeds(seedNotifications, loadGlobalNotifications())
 
@@ -90,14 +112,25 @@ const formatTimeAgo = (ts: string) => {
   return `${days}d ago`
 }
 
-
-// Simulate admin check (replace with real auth in production)
-const isAdmin = typeof window !== 'undefined' && localStorage.getItem('userRole') === 'admin';
-
 export default function NotificationPanel() {
   const [feed, setFeed] = useState<ActivityNotification[]>(() => buildFeed())
   const [filter, setFilter] = useState<FilterKey>('all')
+  const [isSilent, setIsSilent] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem(SILENT_MODE_KEY) === 'true'
+  })
   const navigate = useNavigate();
+  const { isAdmin } = useAdmin()
+  
+  // Use appropriate filter config based on user role
+  const filterConfig = isAdmin ? adminFilterConfig : userFilterConfig
+
+  // Toggle silent mode
+  const toggleSilentMode = () => {
+    const newValue = !isSilent
+    setIsSilent(newValue)
+    localStorage.setItem(SILENT_MODE_KEY, String(newValue))
+  }
 
   useEffect(() => {
     setFeed(buildFeed())
@@ -123,14 +156,17 @@ export default function NotificationPanel() {
 
   const filteredFeed = useMemo(() => {
     let visibleFeed = feed;
-    // Only admin can see contact requests
+    // Filter based on admin status
     if (!isAdmin) {
-      visibleFeed = visibleFeed.filter(item => item.type !== 'contact');
+      // Regular users don't see admin-specific notifications
+      visibleFeed = visibleFeed.filter(item => 
+        !['contact', 'inventory', 'feedback', 'admin_action'].includes(item.type)
+      );
     }
     const selected = filterConfig.find(item => item.key === filter)
     if (!selected || !selected.types) return visibleFeed
     return visibleFeed.filter(item => selected.types?.includes(item.type))
-  }, [feed, filter, isAdmin])
+  }, [feed, filter, isAdmin, filterConfig])
 
   const stats = useMemo(() => {
     const orders = feed.filter(item => item.type === 'order').length
@@ -193,8 +229,22 @@ export default function NotificationPanel() {
                 <p className="text-3xl font-semibold">{stats.unread}</p>
                 <p className="text-xs text-zinc-400">new updates waiting</p>
               </div>
-              <div className="rounded-2xl border border-cyan-400/30 bg-cyan-500/10 p-3 text-cyan-200">
-                <BellRing className="h-6 w-6" />
+              <div className="flex items-center gap-2">
+                {/* Silent Mode Toggle */}
+                <button
+                  onClick={toggleSilentMode}
+                  className={`rounded-2xl border p-3 transition-all ${
+                    isSilent 
+                      ? 'border-red-400/30 bg-red-500/10 text-red-400 hover:bg-red-500/20' 
+                      : 'border-green-400/30 bg-green-500/10 text-green-400 hover:bg-green-500/20'
+                  }`}
+                  title={isSilent ? 'Notifications silenced - Click to enable' : 'Notifications enabled - Click to silence'}
+                >
+                  {isSilent ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+                </button>
+                <div className="rounded-2xl border border-cyan-400/30 bg-cyan-500/10 p-3 text-cyan-200">
+                  <BellRing className="h-6 w-6" />
+                </div>
               </div>
             </div>
 
@@ -246,13 +296,24 @@ export default function NotificationPanel() {
                 </div>
               ) : (
                 filteredFeed.map(item => {
-                  const Icon = typeIcon[item.type]
+                  const Icon = typeIcon[item.type as keyof typeof typeIcon] || BellRing
+                  const accent = typeAccent[item.type] || typeAccent.system
+                  const linkTo = (item as any).linkTo
+                  const isRead = item.status === 'read'
+                  
+                  const handleClick = () => {
+                    if (linkTo) {
+                      navigate(linkTo)
+                    }
+                  }
+                  
                   return (
                     <div
                       key={item.id}
-                      className="group flex items-start gap-4 rounded-2xl border border-white/5 bg-white/5 px-4 py-3 transition hover:border-cyan-400/40 hover:bg-white/10"
+                      onClick={handleClick}
+                      className={`group flex items-start gap-4 rounded-2xl border border-white/5 bg-white/5 px-4 py-3 transition hover:border-cyan-400/40 hover:bg-white/10 ${linkTo ? 'cursor-pointer' : ''} ${isRead ? 'opacity-50' : ''}`}
                     >
-                      <div className={`rounded-2xl border px-3 py-2 ${typeAccent[item.type]}`}>
+                      <div className={`rounded-2xl border px-3 py-2 ${accent}`}>
                         <Icon className="h-4 w-4" />
                       </div>
                       <div className="flex-1">

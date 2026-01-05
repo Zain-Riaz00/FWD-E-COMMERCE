@@ -1,18 +1,19 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { User, Lock, MapPin, Camera, HelpCircle, LogOut, Save, Edit2, ArrowLeft, Shield } from 'lucide-react'
+import { User, Lock, MapPin, Camera, HelpCircle, LogOut, Save, Edit2, ArrowLeft, Shield, Reply, Pause } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import VerifiedBadge from '@/components/ui/VerifiedBadge'
-import { isGuestUser } from '@/utils/guestUser'
+import { isGuestUser, clearAllAuthState } from '@/utils/guestUser'
 import GuestRestrictionModal from '@/components/ui/GuestRestrictionModal'
+import { useAdmin } from '@/contexts/AdminContext'
 
 export default function ProfilePage() {
   const navigate = useNavigate()
   const [showGuestModal, setShowGuestModal] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [isEditingAddress, setIsEditingAddress] = useState(false)
-  const [activeTab, setActiveTab] = useState<'profile' | 'address' | 'password' | 'help'>('profile')
-  const [isAdmin] = useState(() => localStorage.getItem('isAdmin') === 'true')
+  const [activeTab, setActiveTab] = useState<'profile' | 'address' | 'password' | 'help' | 'replies' | 'freeze'>('profile')
+  const { isAdmin, logout: adminLogout } = useAdmin()
   
   // Initialize profile data from localStorage
   const [profileData, setProfileData] = useState(() => {
@@ -85,14 +86,15 @@ export default function ProfilePage() {
   }
 
   const handleSignOut = () => {
-    // Sign out logic
-    console.log('Signing out...')
+    // Clear all auth states properly
+    adminLogout()
+    clearAllAuthState()
     navigate('/auth')
   }
 
   return (
-    <div className="min-h-screen pt-16 pb-12 px-4">
-      <div className="container max-w-6xl mx-auto">
+    <div className="min-h-screen pt-16 pb-12 w-full">
+      <div className="w-full px-4 sm:px-6 lg:px-8">
         {/* Back Button & Header */}
         <div className="mb-8">
           <button
@@ -121,17 +123,20 @@ export default function ProfilePage() {
               <span className="font-medium">Profile Info</span>
             </button>
 
-            <button
-              onClick={() => setActiveTab('address')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                activeTab === 'address'
-                  ? 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20 ring-1 ring-cyan-400/40 text-cyan-100'
-                  : 'text-cyan-200/70 hover:bg-cyan-500/10 hover:text-cyan-100'
-              }`}
-            >
-              <MapPin className="h-5 w-5" />
-              <span className="font-medium">Address</span>
-            </button>
+            {/* Address - Only for non-admin users */}
+            {!isAdmin && (
+              <button
+                onClick={() => setActiveTab('address')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                  activeTab === 'address'
+                    ? 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20 ring-1 ring-cyan-400/40 text-cyan-100'
+                    : 'text-cyan-200/70 hover:bg-cyan-500/10 hover:text-cyan-100'
+                }`}
+              >
+                <MapPin className="h-5 w-5" />
+                <span className="font-medium">Address</span>
+              </button>
+            )}
 
             <button
               onClick={() => setActiveTab('password')}
@@ -145,26 +150,61 @@ export default function ProfilePage() {
               <span className="font-medium">Change Password</span>
             </button>
 
+            {/* Help & Support - Only for non-admin users */}
+            {!isAdmin && (
+              <button
+                onClick={() => setActiveTab('help')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                  activeTab === 'help'
+                    ? 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20 ring-1 ring-cyan-400/40 text-cyan-100'
+                    : 'text-cyan-200/70 hover:bg-cyan-500/10 hover:text-cyan-100'
+                }`}
+              >
+                <HelpCircle className="h-5 w-5" />
+                <span className="font-medium">Help & Support</span>
+              </button>
+            )}
+
+            {/* Replies section - for all users */}
             <button
-              onClick={() => setActiveTab('help')}
+              onClick={() => setActiveTab('replies')}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                activeTab === 'help'
+                activeTab === 'replies'
                   ? 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20 ring-1 ring-cyan-400/40 text-cyan-100'
                   : 'text-cyan-200/70 hover:bg-cyan-500/10 hover:text-cyan-100'
               }`}
             >
-              <HelpCircle className="h-5 w-5" />
-              <span className="font-medium">Help & Support</span>
+              <Reply className="h-5 w-5" />
+              <span className="font-medium">My Replies</span>
             </button>
 
+            {/* Admin-specific navigation - Account Control only */}
             {isAdmin && (
-              <button
-                onClick={() => navigate('/admin')}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-purple-500/20 to-pink-500/20 ring-1 ring-purple-400/40 text-purple-300 hover:from-purple-500/30 hover:to-pink-500/30 transition-all"
-              >
-                <Shield className="h-5 w-5" />
-                <span className="font-medium">Manage Admins</span>
-              </button>
+              <>
+                <div className="pt-4 mt-4 border-t border-purple-400/20">
+                  <p className="text-xs text-purple-300/60 uppercase font-semibold mb-2 px-2">Admin Controls</p>
+                </div>
+
+                <button
+                  onClick={() => setActiveTab('freeze')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                    activeTab === 'freeze'
+                      ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 ring-1 ring-purple-400/40 text-purple-300'
+                      : 'text-purple-300/70 hover:bg-purple-500/10 hover:text-purple-200'
+                  }`}
+                >
+                  <Pause className="h-5 w-5" />
+                  <span className="font-medium">Account Control</span>
+                </button>
+
+                <button
+                  onClick={() => navigate('/admin')}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-purple-500/20 to-pink-500/20 ring-1 ring-purple-400/40 text-purple-300 hover:from-purple-500/30 hover:to-pink-500/30 transition-all"
+                >
+                  <Shield className="h-5 w-5" />
+                  <span className="font-medium">Manage Admins</span>
+                </button>
+              </>
             )}
 
             <div className="pt-4 mt-4 border-t border-cyan-400/10">
@@ -459,6 +499,78 @@ export default function ProfilePage() {
                 </div>
               </motion.div>
             )}
+
+            {/* Replies Tab - For all users */}
+            {activeTab === 'replies' && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-6"
+              >
+                <h2 className="text-2xl font-bold text-cyan-100">My Replies</h2>
+                <p className="text-cyan-200/70">Replies to your comments and reviews</p>
+
+                <div className="space-y-4">
+                  <div className="p-6 bg-cyan-500/10 rounded-xl ring-1 ring-cyan-400/20">
+                    <p className="text-cyan-200/70 text-center py-8">No replies yet. Your comment replies will appear here.</p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+
+
+            {/* Admin: Account Control / Freeze Tab */}
+            {activeTab === 'freeze' && isAdmin && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-6"
+              >
+                <h2 className="text-2xl font-bold text-purple-300">Account Control</h2>
+                <p className="text-purple-200/70">Freeze website access temporarily</p>
+
+                <div className="space-y-4">
+                  <div className="p-6 bg-red-500/10 rounded-xl ring-1 ring-red-400/20">
+                    <h3 className="text-lg font-semibold text-red-100 mb-4">Website Freeze Controls</h3>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-red-200/80 mb-2">Maintenance Message</label>
+                        <textarea
+                          className="w-full px-4 py-3 bg-black/30 border border-red-400/20 rounded-xl text-red-100 placeholder-red-200/40 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                          placeholder="Enter message to display to users..."
+                          rows={3}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-red-200/80 mb-2">Freeze Duration (optional)</label>
+                        <select className="w-full px-4 py-3 bg-black/30 border border-red-400/20 rounded-xl text-red-100 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all">
+                          <option value="">Until manually unfrozen</option>
+                          <option value="30">30 minutes</option>
+                          <option value="60">1 hour</option>
+                          <option value="120">2 hours</option>
+                          <option value="360">6 hours</option>
+                          <option value="720">12 hours</option>
+                          <option value="1440">24 hours</option>
+                        </select>
+                      </div>
+
+                      <div className="flex gap-4 pt-4">
+                        <button className="flex-1 px-6 py-3 bg-red-500/20 text-red-300 rounded-xl font-semibold hover:bg-red-500/30 ring-1 ring-red-400/40 transition-all">
+                          Freeze Website
+                        </button>
+                        <button className="flex-1 px-6 py-3 bg-green-500/20 text-green-300 rounded-xl font-semibold hover:bg-green-500/30 ring-1 ring-green-400/40 transition-all">
+                          Unfreeze Website
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
           </main>
         </div>
       </div>
