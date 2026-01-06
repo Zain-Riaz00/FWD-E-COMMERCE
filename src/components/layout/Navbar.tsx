@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { Search, ShoppingCart, User, Menu, Shield, LogOut, Bell, Heart } from 'lucide-react'
+import { Search, ShoppingCart, User, Menu, Shield, LogOut, Bell, Heart, Package } from 'lucide-react'
 import { useCart } from '@/context/CartContext'
 import { useWishlist } from '@/context/WishlistContext'
 import { useAdmin } from '@/contexts/AdminContext'
@@ -255,6 +255,18 @@ export default function Navbar({ onMenuToggle }: { onMenuToggle?: () => void }) 
               </span>
             )}
           </Link>
+          {/* My Orders - only for logged in users */}
+          {!userStatus.isGuest && (
+            <Link 
+              to="/my-orders" 
+              onClick={(e) => handleNavClick(e, '/my-orders')}
+              aria-label="My Orders" 
+              className="group relative inline-flex items-center rounded-lg p-2 text-cyan-200 hover:bg-white/5 hover:text-cyber-neonAccent"
+              title="My Orders"
+            >
+              <Package className="h-5 w-5" />
+            </Link>
+          )}
           <Link 
             to="/cart" 
             onClick={(e) => handleNavClick(e, '/cart')}

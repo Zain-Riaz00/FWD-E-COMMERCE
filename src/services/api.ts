@@ -224,10 +224,15 @@ export const checkServerHealth = async () => {
 
 // Order API
 export const orderAPI = {
-  // Get all orders
-  async getAll(): Promise<any[]> {
+  // Get all orders (optionally filter by user)
+  async getAll(userId?: string, userEmail?: string): Promise<any[]> {
     try {
-      const response = await fetch(`${API_URL}/orders`)
+      const params = new URLSearchParams()
+      if (userId) params.append('userId', userId)
+      if (userEmail) params.append('userEmail', userEmail)
+      
+      const url = params.toString() ? `${API_URL}/orders?${params}` : `${API_URL}/orders`
+      const response = await fetch(url)
       if (!response.ok) throw new Error('Failed to fetch orders')
       const data = await response.json()
       return data.orders || data || []
@@ -235,6 +240,13 @@ export const orderAPI = {
       console.error('Error fetching orders:', error)
       return []
     }
+  },
+
+  // Get user's orders
+  async getMyOrders(): Promise<any[]> {
+    const userId = localStorage.getItem('userId') || undefined
+    const userEmail = localStorage.getItem('userEmail') || undefined
+    return this.getAll(userId, userEmail)
   },
 
   // Get single order
@@ -264,13 +276,22 @@ export const orderAPI = {
   // Create order
   async create(orderData: any): Promise<any> {
     try {
+      console.log('[orderAPI] Creating order at:', `${API_URL}/orders`)
+      console.log('[orderAPI] Order data:', orderData)
       const response = await fetch(`${API_URL}/orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(orderData),
       })
-      if (!response.ok) throw new Error('Failed to create order')
-      return await response.json()
+      console.log('[orderAPI] Response status:', response.status)
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('[orderAPI] Error response:', errorText)
+        throw new Error(`Failed to create order: ${response.status}`)
+      }
+      const result = await response.json()
+      console.log('[orderAPI] Order created:', result)
+      return result
     } catch (error) {
       console.error('Error creating order:', error)
       return null

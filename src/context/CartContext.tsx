@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo, useState } from 'react'
+import React, { createContext, useContext, useMemo, useState, useEffect, useCallback } from 'react'
 import type { Product } from '@/types/product'
 
 export type CartItem = {
@@ -18,10 +18,66 @@ type CartContextValue = {
 
 const CartContext = createContext<CartContextValue | null>(null)
 
-export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>([])
+// Get cart key based on user
+function getCartKey(): string {
+  const userId = localStorage.getItem('userId')
+  return userId ? `cart_${userId}` : 'cart_guest'
+}
 
-  function addItem(product: Product, qty: number = 1) {
+// Load cart from localStorage
+function loadCart(): CartItem[] {
+  try {
+    const key = getCartKey()
+    const saved = localStorage.getItem(key)
+    return saved ? JSON.parse(saved) : []
+  } catch {
+    return []
+  }
+}
+
+// Save cart to localStorage
+function saveCart(items: CartItem[]): void {
+  try {
+    const key = getCartKey()
+    localStorage.setItem(key, JSON.stringify(items))
+  } catch (e) {
+    console.error('Failed to save cart:', e)
+  }
+}
+
+export function CartProvider({ children }: { children: React.ReactNode }) {
+  const [items, setItems] = useState<CartItem[]>(() => loadCart())
+  const [currentUserId, setCurrentUserId] = useState<string | null>(() => localStorage.getItem('userId'))
+
+  // Listen for user changes (login/logout)
+  useEffect(() => {
+    const checkUser = () => {
+      const userId = localStorage.getItem('userId')
+      if (userId !== currentUserId) {
+        setCurrentUserId(userId)
+        // Load the cart for the new user
+        setItems(loadCart())
+      }
+    }
+
+    // Check on storage events
+    window.addEventListener('storage', checkUser)
+    
+    // Also check periodically in case of same-tab changes
+    const interval = setInterval(checkUser, 1000)
+    
+    return () => {
+      window.removeEventListener('storage', checkUser)
+      clearInterval(interval)
+    }
+  }, [currentUserId])
+
+  // Save cart whenever items change
+  useEffect(() => {
+    saveCart(items)
+  }, [items])
+
+  const addItem = useCallback((product: Product, qty: number = 1) => {
     setItems((prev) => {
       const i = prev.findIndex((x) => x.product.id === product.id)
       if (i >= 0) {
@@ -31,19 +87,26 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
       return [...prev, { product, quantity: qty }]
     })
-  }
+  }, [])
 
-  function updateQuantity(productId: string, qty: number) {
+  const updateQuantity = useCallback((productId: string, qty: number) => {
     setItems((prev) => prev.map((x) => (x.product.id === productId ? { ...x, quantity: Math.max(0, qty) } : x)).filter((x) => x.quantity > 0))
-  }
+  }, [])
 
-  function removeItem(productId: string) {
+  const removeItem = useCallback((productId: string) => {
     setItems((prev) => prev.filter((x) => x.product.id !== productId))
-  }
+  }, [])
 
-  function clear() {
+  const clear = useCallback(() => {
     setItems([])
-  }
+    // Also clear from localStorage
+    try {
+      const key = getCartKey()
+      localStorage.removeItem(key)
+    } catch (e) {
+      console.error('Failed to clear cart:', e)
+    }
+  }, [])
 
   const totals = useMemo(() => {
     const totalQuantity = items.reduce((sum, x) => sum + x.quantity, 0)

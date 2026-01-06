@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { CheckCircle, Package, Truck, MapPin, Calendar, AlertCircle } from 'lucide-react'
 import { orderAPI } from '@/services/api'
+import { useCart } from '@/context/CartContext'
 import type { Product } from '@/types/product'
 
 interface OrderState {
@@ -21,6 +22,7 @@ interface OrderState {
 export default function OrderConfirmationPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { removeItem } = useCart()
   const state = location.state as OrderState | undefined
   const orderCreatedRef = useRef(false)
 
@@ -82,6 +84,12 @@ export default function OrderConfirmationPage() {
           setOrderId(result._id)
           setOrderNumber(result.orderNumber || `ORD-${result._id.slice(-8).toUpperCase()}`)
           
+          // Remove the purchased item from cart (or clear entire cart if buying single item)
+          const productId = state.product._id || state.product.id
+          if (productId) {
+            removeItem(productId)
+          }
+          
           // Trigger notification update
           window.dispatchEvent(new CustomEvent('global-notifications-update'))
         } else {
@@ -96,7 +104,7 @@ export default function OrderConfirmationPage() {
     }
 
     createOrder()
-  }, [state, navigate])
+  }, [state, navigate, removeItem])
 
   if (!state?.product) {
     return (

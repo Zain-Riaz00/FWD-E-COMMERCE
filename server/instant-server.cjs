@@ -479,10 +479,25 @@ const orderSchema = new mongoose.Schema({
 
 const Order = mongoose.model('Order', orderSchema);
 
-// GET - Fetch all orders
+// GET - Fetch all orders (with optional user filter)
 app.get('/api/orders', async (req, res) => {
   try {
-    const orders = await Order.find().sort({ createdAt: -1 });
+    const { userId, userEmail } = req.query;
+    let query = {};
+    
+    // If userId or userEmail provided, filter by user
+    if (userId || userEmail) {
+      query = {
+        $or: []
+      };
+      if (userId) query.$or.push({ userId });
+      if (userEmail) query.$or.push({ customerEmail: userEmail });
+      
+      // Remove empty $or
+      if (query.$or.length === 0) delete query.$or;
+    }
+    
+    const orders = await Order.find(query).sort({ createdAt: -1 });
     console.log(`[GET] ${orders.length} orders fetched`);
     res.json({ orders });
   } catch (error) {

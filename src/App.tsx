@@ -16,6 +16,7 @@ import CartPage from '@/pages/CartPage'
 import CheckoutPage from '@/pages/CheckoutPage'
 import OrderConfirmationPage from '@/pages/OrderConfirmationPage'
 import OrderTrackingPage from '@/pages/OrderTrackingPage'
+import MyOrdersPage from '@/pages/MyOrdersPage'
 import NotificationPage from '@/pages/NotificationPage'
 import ContactPage from '@/pages/ContactPage'
 import AboutPage from '@/pages/AboutPage'
@@ -76,6 +77,7 @@ function RoutesWithTransition({ onMenuToggle }: { onMenuToggle: () => void }) {
             <Route path="/checkout" element={<CheckoutPage />} />
             <Route path="/order-confirmation" element={<OrderConfirmationPage />} />
             <Route path="/order-tracking/:orderId" element={<OrderTrackingPage />} />
+            <Route path="/my-orders" element={<MyOrdersPage />} />
             <Route path="/comment/:id/:viewType" element={<CommentPage />} />
             <Route path="/notifications" element={<NotificationPage />} />
             <Route path="/contact" element={<ContactPage />} />
