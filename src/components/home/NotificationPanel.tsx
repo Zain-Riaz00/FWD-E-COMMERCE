@@ -298,8 +298,34 @@ export default function NotificationPanel() {
                 filteredFeed.map(item => {
                   const Icon = typeIcon[item.type as keyof typeof typeIcon] || BellRing
                   const accent = typeAccent[item.type] || typeAccent.system
-                  const linkTo = (item as any).linkTo
                   const isRead = item.status === 'read'
+                  
+                  // Determine navigation link based on notification type
+                  const getNavigationLink = () => {
+                    const meta = item as any
+                    if (meta.linkTo) return meta.linkTo
+                    
+                    switch(item.type) {
+                      case 'reply':
+                        return meta.productId ? `/products/${meta.productId}#comments` : '/comments'
+                      case 'inventory':
+                        return '/inventory-alerts'
+                      case 'feedback':
+                        return '/feedback'
+                      case 'order':
+                        return '/orders'
+                      case 'contact':
+                        return '/feedback'
+                      case 'product':
+                        return meta.productId ? `/products/${meta.productId}` : '/products'
+                      case 'admin_action':
+                        return '/admin-logs'
+                      default:
+                        return null
+                    }
+                  }
+                  
+                  const linkTo = getNavigationLink()
                   
                   const handleClick = () => {
                     if (linkTo) {

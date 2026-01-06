@@ -16,7 +16,6 @@ import { productAPI, categoryAPI } from '@/services/api'
 export default function ProductsPage() {
   const gridRef = useRef<HTMLDivElement | null>(null)
   const filtersRef = useRef<HTMLDivElement | null>(null)
-  const [activeFilter, setActiveFilter] = useState('All')
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [viewMode, setViewMode] = useState<'grouped' | 'all'>('all') // Default to 'all' view
   const [products, setProducts] = useState<Product[]>([])
@@ -214,7 +213,7 @@ export default function ProductsPage() {
           },
         },
       )
-    }, gridRef)
+    })
     return () => ctx.revert()
   }, [loading, products, viewMode])
 
@@ -299,73 +298,40 @@ export default function ProductsPage() {
           )}
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-6">
-        {/* Sticky vertical filter sidebar - narrower */}
-        <aside
-          ref={filtersRef}
-          className="filter-sidebar lg:col-span-1 lg:sticky lg:top-20 h-max rounded-xl p-3"
-          style={{
-            background:
-              'linear-gradient(180deg, rgba(10,10,14,0.9) 0%, rgba(6,8,16,0.9) 100%), radial-gradient(circle at 20% 0%, rgba(0,255,209,0.06), transparent 40%), radial-gradient(circle at 100% 50%, rgba(255,87,51,0.04), transparent 40%)',
-            boxShadow: 'inset 0 0 0 1px rgba(0,255,255,0.10)',
-          }}
-        >
-          <h2 className="mb-3 text-sm font-semibold text-cyan-100 dark:text-cyan-100 text-blue-700 flex items-center gap-2">
-            <Filter className="w-4 h-4" />
-            Filters
-          </h2>
-          
-          {/* Category Filter */}
-          {categories.length > 0 && (
-            <div className="mb-4">
-              <h3 className="mb-2 text-xs font-semibold text-cyan-300/70 uppercase">Categories</h3>
-              <ul className="space-y-1 text-sm text-cyan-200/80">
-                <li>
+      <div className={`grid grid-cols-1 gap-6 ${!selectedCategory ? 'lg:grid-cols-6' : ''}`}>
+        {/* Sticky vertical filter sidebar - hidden when category is selected */}
+        {!selectedCategory && (
+          <aside
+            ref={filtersRef}
+            className="filter-sidebar lg:col-span-1 lg:sticky lg:top-20 h-max rounded-xl p-3"
+            style={{
+              background:
+                'linear-gradient(180deg, rgba(10,10,14,0.9) 0%, rgba(6,8,16,0.9) 100%), radial-gradient(circle at 20% 0%, rgba(0,255,209,0.06), transparent 40%), radial-gradient(circle at 100% 50%, rgba(255,87,51,0.04), transparent 40%)',
+              boxShadow: 'inset 0 0 0 1px rgba(0,255,255,0.10)',
+            }}
+          >
+            <h2 className="mb-3 text-sm font-semibold text-cyan-100 dark:text-cyan-100 text-blue-700 flex items-center gap-2">
+              <Filter className="w-4 h-4" />
+              Filters
+            </h2>
+            
+            {/* Quick Filters */}
+            <h3 className="mb-2 text-xs font-semibold text-cyan-300/70 uppercase">Quick Filters</h3>
+            <ul className="space-y-1 text-sm text-cyan-200/80">
+              {['All', 'New', 'Popular', 'Sale', 'Trending'].map((label) => (
+                <li key={label}>
                   <button
-                    onClick={() => setSelectedCategory('')}
-                    aria-pressed={selectedCategory === ''}
-                    className={`w-full rounded-md px-3 py-1.5 text-left transition-colors hover:bg-white/5 ${selectedCategory === '' ? 'neon-glow-text bg-white/5' : ''}`}
+                    className="w-full rounded-md px-3 py-1.5 text-left transition-colors hover:bg-white/5"
                   >
-                    All Categories
+                    {label}
                   </button>
                 </li>
-                {categories.map((category) => (
-                  <li key={category.id}>
-                    <button
-                      onClick={() => setSelectedCategory(category.id)}
-                      aria-pressed={selectedCategory === category.id}
-                      className={`w-full rounded-md px-3 py-1.5 text-left transition-colors hover:bg-white/5 flex items-center gap-2 ${selectedCategory === category.id ? 'neon-glow-text bg-white/5' : ''}`}
-                    >
-                      <div
-                        className="w-3 h-3 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: category.color }}
-                      />
-                      {category.name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          
-          {/* Standard Filters */}
-          <h3 className="mb-2 text-xs font-semibold text-cyan-300/70 dark:text-cyan-300/70 text-slate-900 uppercase">Quick Filters</h3>
-          <ul className="space-y-2 text-sm text-cyan-200/80">
-            {['All', 'New', 'Popular', 'Sale', 'Accessories'].map((label) => (
-              <li key={label}>
-                <button
-                  onClick={() => setActiveFilter(label)}
-                  aria-pressed={activeFilter === label}
-                  className={`w-full rounded-md px-3 py-2 text-left transition-colors hover:bg-white/5 ${activeFilter === label ? 'neon-glow-text' : ''}`}
-                >
-                  {label}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </aside>
+              ))}
+            </ul>
+          </aside>
+        )}
         {/* Products grid */}
-        <div className="lg:col-span-5">
+        <div className={selectedCategory ? '' : 'lg:col-span-5'}>
           {viewMode === 'grouped' ? (
             /* Grouped by Category View */
             <div className="space-y-12">

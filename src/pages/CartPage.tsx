@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Eye } from 'lucide-react'
 import { useState } from 'react'
+import { motion } from 'framer-motion'
 
 export default function CartPage() {
   const { items, totalPrice, totalQuantity, updateQuantity, removeItem, clear } = useCart()

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, Plus, Trash2, Edit2, Upload, Image as ImageIcon } from 'lucide-react'
 import type { Category } from '../../types/product'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
+import { categoryAPI } from '@/services/api'
 
 interface CategoryManagementModalProps {
   isOpen: boolean
@@ -10,13 +11,6 @@ interface CategoryManagementModalProps {
   onSaveCategories: (categories: Category[]) => void
   initialCategories: Category[]
 }
-
-const defaultColors = [
-  '#ef4444', '#f97316', '#f59e0b', '#eab308',
-  '#84cc16', '#22c55e', '#10b981', '#14b8a6',
-  '#06b6d4', '#0ea5e9', '#3b82f6', '#6366f1',
-  '#8b5cf6', '#a855f7', '#d946ef', '#ec4899'
-]
 
 export function CategoryManagementModal({
   isOpen,
@@ -41,11 +35,6 @@ export function CategoryManagementModal({
   useEffect(() => {
     setCategories(initialCategories)
   }, [initialCategories])
-
-  // Auto-assign color based on category count
-  const getNextColor = () => {
-    return defaultColors[categories.length % defaultColors.length]
-  }
 
   // Compress image to reduce size
   const compressImage = (file: File): Promise<string> => {
@@ -103,7 +92,7 @@ export function CategoryManagementModal({
     setImagePreview(url)
   }
 
-  const handleAddCategory = () => {
+  const handleAddCategory = async () => {
     if (!newCategory.name?.trim()) {
       alert('Category name is required')
       return
@@ -114,17 +103,24 @@ export function CategoryManagementModal({
       return
     }
 
-    const category: Category = {
-      id: `cat-${Date.now()}`,
-      name: newCategory.name,
-      description: newCategory.description || '',
-      color: getNextColor(), // Auto-assign color
-      imageUrl: newCategory.imageUrl
+    try {
+      const categoryData = {
+        name: newCategory.name,
+        description: newCategory.description || '',
+        color: '#06b6d4', // Default cyan color
+        imageUrl: newCategory.imageUrl
+      }
+      
+      const created = await categoryAPI.create(categoryData)
+      if (created) {
+        setCategories([...categories, created])
+        setNewCategory({ name: '', description: '', imageUrl: '' })
+        setImagePreview('')
+      }
+    } catch (error) {
+      console.error('Error creating category:', error)
+      alert('Failed to create category')
     }
-
-    setCategories([...categories, category])
-    setNewCategory({ name: '', description: '', imageUrl: '' })
-    setImagePreview('')
   }
 
   const handleEditCategory = (id: string) => {
@@ -140,7 +136,7 @@ export function CategoryManagementModal({
     }
   }
 
-  const handleUpdateCategory = () => {
+  const handleUpdateCategory = async () => {
     if (!editingId || !newCategory.name?.trim()) return
 
     if (!newCategory.imageUrl?.trim()) {
@@ -148,16 +144,24 @@ export function CategoryManagementModal({
       return
     }
 
-    setCategories(categories.map(cat =>
-      cat.id === editingId
-        ? { 
-            ...cat, 
-            name: newCategory.name!, 
-            description: newCategory.description || '',
-            imageUrl: newCategory.imageUrl || ''
-          }
-        : cat
-    ))
+    try {
+      const category = categories.find(c => c.id === editingId)
+      if (!category) return
+      
+      const updated = await categoryAPI.update(category._id || editingId, {
+        name: newCategory.name!,
+        description: newCategory.description || '',
+        imageUrl: newCategory.imageUrl || ''
+      })
+      
+      if (updated) {
+        setCategories(categories.map(cat =>
+          cat.id === editingId ? updated : cat
+        ))
+      }
+    } catch (error) {
+      console.error('Error updating category:', error)
+    }
 
     setNewCategory({ name: '', description: '', imageUrl: '' })
     setImagePreview('')
@@ -168,9 +172,17 @@ export function CategoryManagementModal({
     setConfirmDelete({ show: true, categoryId: id })
   }
 
-  const confirmDeleteCategory = () => {
+  const confirmDeleteCategory = async () => {
     if (confirmDelete.categoryId) {
-      setCategories(categories.filter(c => c.id !== confirmDelete.categoryId))
+      try {
+        const category = categories.find(c => c.id === confirmDelete.categoryId)
+        if (category) {
+          await categoryAPI.delete(category._id || confirmDelete.categoryId)
+          setCategories(categories.filter(c => c.id !== confirmDelete.categoryId))
+        }
+      } catch (error) {
+        console.error('Error deleting category:', error)
+      }
     }
     setConfirmDelete({ show: false, categoryId: null })
   }
@@ -210,9 +222,11 @@ export function CategoryManagementModal({
         </div>
 
         <div className="p-5 space-y-5">
-          {/* Add/Edit Category Form */}
-          <div className="bg-gray-800/50 dark:bg-gray-800/50 bg-white/80 rounded-lg p-4 border dark:border-cyan-500/20 border-blue-400/30 backdrop-blur-sm">
-            <h3 className="text-sm font-semibold text-cyan-400 dark:text-cyan-400 text-blue-700 mb-3">
+          {/* Add/Edit Category Form - Glassmorphic like login card */}
+          <div className="relative backdrop-blur-xl bg-black/40 rounded-2xl p-5 border border-white/20 shadow-[0_0_40px_rgba(6,182,212,0.2)] ring-1 ring-inset ring-cyan-500/30">
+            {/* Gradient overlay */}
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-cyan-500/10 via-transparent to-purple-500/10 pointer-events-none" />
+            <h3 className="relative text-sm font-semibold text-cyan-400 mb-3">
               {editingId ? 'Edit Category' : 'Add New Category'}
             </h3>
             
@@ -287,15 +301,7 @@ export function CategoryManagementModal({
                     )}
                   </div>
 
-                  {/* Helper text */}
-                  <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-2">
-                    <p className="text-xs text-blue-200/80">
-                      📸 <strong>Upload:</strong> Images auto-compressed to save space
-                    </p>
-                    <p className="text-xs text-blue-200/60 mt-1">
-                      🔗 <strong>Or use URL:</strong> Right-click image → Copy Image Address
-                    </p>
-                  </div>
+
 
                   {/* Preview */}
                   <div>
@@ -320,21 +326,7 @@ export function CategoryManagementModal({
                 </div>
               </div>
 
-              <div className="bg-gray-800/30 rounded-lg p-3 border border-gray-700/50">
-                <p className="text-xs text-gray-400 mb-2">
-                  🎨 Color will be automatically assigned from a vibrant palette
-                </p>
-                <div className="flex gap-1">
-                  {defaultColors.slice(0, 8).map((color, i) => (
-                    <div
-                      key={i}
-                      className="w-6 h-6 rounded-full"
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
-                  <span className="text-gray-500 text-sm ml-1">...</span>
-                </div>
-              </div>
+
 
               <div className="flex gap-2">
                 {editingId ? (
@@ -445,16 +437,13 @@ export function CategoryManagementModal({
         {/* Footer */}
         <div className="sticky bottom-0 bg-gray-900/95 backdrop-blur-sm p-5 border-t border-cyan-500/20 flex justify-end gap-3">
           <button
-            onClick={onClose}
-            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
+            onClick={() => {
+              onSaveCategories(categories)
+              onClose()
+            }}
             className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg transition-colors font-medium"
           >
-            Save Changes
+            Done
           </button>
         </div>
       </motion.div>

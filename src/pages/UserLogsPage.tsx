@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { ArrowLeft, Users, LogIn, LogOut, Clock, Mail, Search, Filter } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAdmin } from '@/contexts/AdminContext'
+import { logsAPI } from '@/services/api'
 
 interface UserLog {
   id: string
@@ -39,68 +40,27 @@ export default function UserLogsPage() {
   async function loadLogs() {
     setLoading(true)
     try {
-      // Mock user logs data
-      const mockLogs: UserLog[] = [
-        {
-          id: 'LOG-001',
-          userId: 'USR-001',
-          userName: 'John Doe',
-          email: 'john@example.com',
-          action: 'login',
-          timestamp: new Date(Date.now() - 60000 * 5).toISOString(),
-          device: 'Chrome on Windows'
-        },
-        {
-          id: 'LOG-002',
-          userId: 'USR-002',
-          userName: 'Jane Smith',
-          email: 'jane@example.com',
-          action: 'purchase',
-          timestamp: new Date(Date.now() - 60000 * 30).toISOString(),
-          device: 'Safari on MacOS'
-        },
-        {
-          id: 'LOG-003',
-          userId: 'USR-003',
-          userName: 'Mike Johnson',
-          email: 'mike@example.com',
-          action: 'register',
-          timestamp: new Date(Date.now() - 60000 * 60).toISOString(),
-          device: 'Firefox on Linux'
-        },
-        {
-          id: 'LOG-004',
-          userId: 'USR-001',
-          userName: 'John Doe',
-          email: 'john@example.com',
-          action: 'logout',
-          timestamp: new Date(Date.now() - 60000 * 120).toISOString(),
-          device: 'Chrome on Windows'
-        },
-        {
-          id: 'LOG-005',
-          userId: 'USR-004',
-          userName: 'Sarah Wilson',
-          email: 'sarah@example.com',
-          action: 'password_reset',
-          timestamp: new Date(Date.now() - 86400000).toISOString(),
-          device: 'Mobile Safari on iOS'
-        },
-        {
-          id: 'LOG-006',
-          userId: 'USR-002',
-          userName: 'Jane Smith',
-          email: 'jane@example.com',
-          action: 'profile_update',
-          timestamp: new Date(Date.now() - 86400000 * 2).toISOString(),
-          device: 'Safari on MacOS'
-        }
-      ]
+      // Fetch real user logs from API
+      const logsData = await logsAPI.getUserLogs()
+      
+      // Transform logs to match the expected interface
+      const transformedLogs: UserLog[] = logsData.map((log: any) => ({
+        id: log._id || log.id || `LOG-${Date.now()}`,
+        userId: log.userId || log.user?._id || 'N/A',
+        userName: log.userName || log.user?.username || 'Unknown User',
+        email: log.email || log.user?.email || 'N/A',
+        action: log.action || 'login',
+        timestamp: log.timestamp || log.createdAt || new Date().toISOString(),
+        ipAddress: log.ipAddress,
+        device: log.device || log.userAgent || 'Unknown'
+      }))
 
-      cachedUserLogs = mockLogs
-      setLogs(mockLogs)
+      cachedUserLogs = transformedLogs
+      setLogs(transformedLogs)
     } catch (error) {
       console.error('Error loading logs:', error)
+      // On error, show empty state
+      setLogs([])
     } finally {
       setLoading(false)
     }

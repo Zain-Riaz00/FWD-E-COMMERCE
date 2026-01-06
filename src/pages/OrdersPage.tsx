@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { ArrowLeft, Package, Tag, Calendar, User, Plus } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAdmin } from '@/contexts/AdminContext'
+import { orderAPI } from '@/services/api'
 
 interface Order {
   id: string
@@ -59,75 +60,34 @@ export default function OrdersPage() {
   async function loadData() {
     setLoading(true)
     try {
-      // Mock orders data
-      const mockOrders: Order[] = [
-        {
-          id: 'ORD-001',
-          customerName: 'John Doe',
-          customerEmail: 'john@example.com',
-          items: [
-            { productName: 'Gaming Headset Pro', quantity: 1, price: 129.99 },
-            { productName: 'RGB Mouse Pad', quantity: 2, price: 29.99 }
-          ],
-          total: 189.97,
-          status: 'delivered',
-          createdAt: new Date(Date.now() - 86400000 * 2).toISOString()
-        },
-        {
-          id: 'ORD-002',
-          customerName: 'Jane Smith',
-          customerEmail: 'jane@example.com',
-          items: [
-            { productName: 'Mechanical Keyboard', quantity: 1, price: 159.99 }
-          ],
-          total: 159.99,
-          status: 'processing',
-          createdAt: new Date(Date.now() - 86400000).toISOString(),
-          discountApplied: 'SAVE10'
-        },
-        {
-          id: 'ORD-003',
-          customerName: 'Mike Johnson',
-          customerEmail: 'mike@example.com',
-          items: [
-            { productName: 'Gaming Chair', quantity: 1, price: 299.99 },
-            { productName: 'Monitor Stand', quantity: 1, price: 49.99 }
-          ],
-          total: 349.98,
-          status: 'pending',
-          createdAt: new Date().toISOString()
-        }
-      ]
+      // Fetch real orders from API
+      const ordersData = await orderAPI.getAll()
+      
+      // Transform orders to match the expected interface
+      const transformedOrders: Order[] = ordersData.map((order: any) => ({
+        id: order._id || order.id,
+        customerName: order.user?.username || order.customerName || 'Guest Customer',
+        customerEmail: order.user?.email || order.customerEmail || 'N/A',
+        items: order.items?.map((item: any) => ({
+          productName: item.product?.name || item.productName || 'Unknown Product',
+          quantity: item.quantity || 1,
+          price: item.product?.price || item.price || 0
+        })) || [],
+        total: order.totalAmount || order.total || 0,
+        status: order.status || 'pending',
+        createdAt: order.createdAt || new Date().toISOString(),
+        discountApplied: order.discountApplied || order.discountCode
+      }))
 
-      const mockDiscounts: Discount[] = [
-        {
-          id: 'DSC-001',
-          code: 'SAVE10',
-          type: 'percentage',
-          value: 10,
-          minOrder: 50,
-          expiresAt: new Date(Date.now() + 86400000 * 30).toISOString(),
-          usageCount: 15,
-          isActive: true
-        },
-        {
-          id: 'DSC-002',
-          code: 'FLAT20',
-          type: 'fixed',
-          value: 20,
-          minOrder: 100,
-          expiresAt: new Date(Date.now() + 86400000 * 7).toISOString(),
-          usageCount: 5,
-          isActive: true
-        }
-      ]
-
-      cachedOrders = mockOrders
-      cachedDiscounts = mockDiscounts
-      setOrders(mockOrders)
-      setDiscounts(mockDiscounts)
+      cachedOrders = transformedOrders
+      cachedDiscounts = [] // No mock discounts, start empty
+      setOrders(transformedOrders)
+      setDiscounts([])
     } catch (error) {
       console.error('Error loading data:', error)
+      // On error, show empty state
+      setOrders([])
+      setDiscounts([])
     } finally {
       setLoading(false)
     }

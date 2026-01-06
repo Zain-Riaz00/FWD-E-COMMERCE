@@ -221,3 +221,94 @@ export const checkServerHealth = async () => {
     return null
   }
 }
+
+// Order API
+export const orderAPI = {
+  // Get all orders
+  async getAll(): Promise<any[]> {
+    try {
+      const response = await fetch(`${API_URL}/orders`)
+      if (!response.ok) throw new Error('Failed to fetch orders')
+      const data = await response.json()
+      return data.orders || data || []
+    } catch (error) {
+      console.error('Error fetching orders:', error)
+      return []
+    }
+  },
+
+  // Create order
+  async create(orderData: any): Promise<any> {
+    try {
+      const response = await fetch(`${API_URL}/orders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderData),
+      })
+      if (!response.ok) throw new Error('Failed to create order')
+      return await response.json()
+    } catch (error) {
+      console.error('Error creating order:', error)
+      return null
+    }
+  },
+
+  // Update order status
+  async updateStatus(id: string, status: string): Promise<any> {
+    try {
+      const response = await fetch(`${API_URL}/orders/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+      if (!response.ok) throw new Error('Failed to update order')
+      return await response.json()
+    } catch (error) {
+      console.error('Error updating order:', error)
+      return null
+    }
+  }
+}
+
+// Logs API - fetches admin activity logs
+export const logsAPI = {
+  // Get admin logs
+  async getAdminLogs(): Promise<any[]> {
+    try {
+      const response = await fetch(`${API_URL}/admin/logs`)
+      if (!response.ok) throw new Error('Failed to fetch admin logs')
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching admin logs:', error)
+      return []
+    }
+  },
+
+  // Get user logs
+  async getUserLogs(): Promise<any[]> {
+    try {
+      const response = await fetch(`${API_URL}/admin/user-logs`)
+      if (!response.ok) throw new Error('Failed to fetch user logs')
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching user logs:', error)
+      return []
+    }
+  },
+
+  // Log an action
+  async logAction(action: { type: string; description: string; userId?: string }): Promise<any> {
+    try {
+      const response = await fetch(`${API_URL}/admin/logs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(action),
+      })
+      if (!response.ok) throw new Error('Failed to log action')
+      return await response.json()
+    } catch (error) {
+      console.error('Error logging action:', error)
+      return null
+    }
+  }
+}

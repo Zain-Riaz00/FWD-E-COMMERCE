@@ -365,6 +365,77 @@ app.post('/api/slides', async (req, res) => {
   }
 });
 
+// ========== CATEGORY ROUTES ==========
+
+// Category Schema
+const categorySchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  description: { type: String, default: '' },
+  color: { type: String, default: '#06b6d4' },
+  imageUrl: { type: String, default: '' }
+}, { timestamps: true });
+
+const Category = mongoose.model('Category', categorySchema);
+
+// GET - Fetch all categories
+app.get('/api/categories', async (req, res) => {
+  try {
+    const categories = await Category.find().sort({ createdAt: -1 });
+    res.json(categories);
+  } catch (error) {
+    console.error('[GET] Error fetching categories:', error);
+    res.status(500).json({ error: 'Failed to fetch categories' });
+  }
+});
+
+// POST - Create category
+app.post('/api/categories', async (req, res) => {
+  try {
+    const { name, description, color, imageUrl } = req.body;
+    const category = new Category({ name, description, color, imageUrl });
+    await category.save();
+    console.log('[POST] Category created:', name);
+    res.status(201).json(category);
+  } catch (error) {
+    console.error('[POST] Error creating category:', error);
+    res.status(400).json({ error: 'Failed to create category' });
+  }
+});
+
+// PUT - Update category
+app.put('/api/categories/:id', async (req, res) => {
+  try {
+    const category = await Category.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    if (!category) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+    console.log('[PUT] Category updated:', category.name);
+    res.json(category);
+  } catch (error) {
+    console.error('[PUT] Error updating category:', error);
+    res.status(400).json({ error: 'Failed to update category' });
+  }
+});
+
+// DELETE - Delete category
+app.delete('/api/categories/:id', async (req, res) => {
+  try {
+    const category = await Category.findByIdAndDelete(req.params.id);
+    if (!category) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+    console.log('[DELETE] Category deleted:', category.name);
+    res.json({ message: 'Category deleted successfully' });
+  } catch (error) {
+    console.error('[DELETE] Error deleting category:', error);
+    res.status(500).json({ error: 'Failed to delete category' });
+  }
+});
+
 // ============================================
 // START SERVER
 // ============================================

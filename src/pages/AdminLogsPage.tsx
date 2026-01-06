@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { ArrowLeft, Shield, Clock, Settings, UserPlus, UserMinus, Edit, Trash, Search, Filter } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAdmin } from '@/contexts/AdminContext'
+import { logsAPI } from '@/services/api'
 
 interface AdminLog {
   id: string
@@ -39,85 +40,27 @@ export default function AdminLogsPage() {
   async function loadLogs() {
     setLoading(true)
     try {
-      // Mock admin logs data
-      const mockLogs: AdminLog[] = [
-        {
-          id: 'ALOG-001',
-          adminId: 'ADM-001',
-          adminName: 'Super Admin',
-          adminEmail: 'admin@store.com',
-          action: 'login',
-          timestamp: new Date(Date.now() - 60000 * 10).toISOString()
-        },
-        {
-          id: 'ALOG-002',
-          adminId: 'ADM-001',
-          adminName: 'Super Admin',
-          adminEmail: 'admin@store.com',
-          action: 'product_add',
-          details: 'Added new product: Gaming Headset Pro X',
-          timestamp: new Date(Date.now() - 60000 * 30).toISOString()
-        },
-        {
-          id: 'ALOG-003',
-          adminId: 'ADM-002',
-          adminName: 'Manager Admin',
-          adminEmail: 'manager@store.com',
-          action: 'product_edit',
-          details: 'Updated price for: Mechanical Keyboard RGB',
-          timestamp: new Date(Date.now() - 60000 * 60).toISOString()
-        },
-        {
-          id: 'ALOG-004',
-          adminId: 'ADM-001',
-          adminName: 'Super Admin',
-          adminEmail: 'admin@store.com',
-          action: 'admin_add',
-          details: 'Added new admin: manager@store.com',
-          timestamp: new Date(Date.now() - 86400000).toISOString()
-        },
-        {
-          id: 'ALOG-005',
-          adminId: 'ADM-001',
-          adminName: 'Super Admin',
-          adminEmail: 'admin@store.com',
-          action: 'settings_change',
-          details: 'Updated store settings: currency changed to PKR',
-          timestamp: new Date(Date.now() - 86400000 * 2).toISOString()
-        },
-        {
-          id: 'ALOG-006',
-          adminId: 'ADM-002',
-          adminName: 'Manager Admin',
-          adminEmail: 'manager@store.com',
-          action: 'user_ban',
-          details: 'Banned user: spammer@example.com for policy violation',
-          timestamp: new Date(Date.now() - 86400000 * 3).toISOString()
-        },
-        {
-          id: 'ALOG-007',
-          adminId: 'ADM-001',
-          adminName: 'Super Admin',
-          adminEmail: 'admin@store.com',
-          action: 'discount_create',
-          details: 'Created discount code: SUMMER25 (25% off)',
-          timestamp: new Date(Date.now() - 86400000 * 5).toISOString()
-        },
-        {
-          id: 'ALOG-008',
-          adminId: 'ADM-002',
-          adminName: 'Manager Admin',
-          adminEmail: 'manager@store.com',
-          action: 'order_update',
-          details: 'Updated order #ORD-123 status to shipped',
-          timestamp: new Date(Date.now() - 86400000 * 7).toISOString()
-        }
-      ]
+      // Fetch real admin logs from API
+      const logsData = await logsAPI.getAdminLogs()
+      
+      // Transform logs to match the expected interface
+      const transformedLogs: AdminLog[] = logsData.map((log: any) => ({
+        id: log._id || log.id || `ALOG-${Date.now()}`,
+        adminId: log.adminId || log.admin?._id || 'N/A',
+        adminName: log.adminName || log.admin?.username || 'Unknown Admin',
+        adminEmail: log.adminEmail || log.admin?.email || 'N/A',
+        action: log.action || 'login',
+        details: log.details || log.description,
+        timestamp: log.timestamp || log.createdAt || new Date().toISOString(),
+        ipAddress: log.ipAddress
+      }))
 
-      cachedAdminLogs = mockLogs
-      setLogs(mockLogs)
+      cachedAdminLogs = transformedLogs
+      setLogs(transformedLogs)
     } catch (error) {
       console.error('Error loading logs:', error)
+      // On error, show empty state
+      setLogs([])
     } finally {
       setLoading(false)
     }

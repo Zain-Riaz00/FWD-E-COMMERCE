@@ -32,17 +32,17 @@ import { AdminProvider } from '@/contexts/AdminContext'
 import { ThemeProvider } from '@/contexts/ThemeContext'
 import { WishlistProvider } from '@/context/WishlistContext'
 
-// Page transition animation variants
+// Page transition animation variants - simple opacity fade
 const pageVariants = {
-  initial: { opacity: 0, y: 8 },
-  in: { opacity: 1, y: 0 },
-  out: { opacity: 0, y: -8 }
+  initial: { opacity: 0 },
+  in: { opacity: 1 },
+  out: { opacity: 0 }
 }
 
 const pageTransition = {
-  type: 'tween',
-  ease: 'easeInOut',
-  duration: 0.2
+  type: 'tween' as const,
+  ease: 'linear' as const,
+  duration: 0.1
 }
  
 
