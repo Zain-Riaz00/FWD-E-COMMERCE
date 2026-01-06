@@ -18,9 +18,23 @@ type CartContextValue = {
 
 const CartContext = createContext<CartContextValue | null>(null)
 
+// Get user ID from localStorage
+function getUserId(): string | null {
+  const userJson = localStorage.getItem('user')
+  if (userJson) {
+    try {
+      const user = JSON.parse(userJson)
+      return user._id || null
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
 // Get cart key based on user
 function getCartKey(): string {
-  const userId = localStorage.getItem('userId')
+  const userId = getUserId()
   return userId ? `cart_${userId}` : 'cart_guest'
 }
 
@@ -47,12 +61,12 @@ function saveCart(items: CartItem[]): void {
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>(() => loadCart())
-  const [currentUserId, setCurrentUserId] = useState<string | null>(() => localStorage.getItem('userId'))
+  const [currentUserId, setCurrentUserId] = useState<string | null>(() => getUserId())
 
   // Listen for user changes (login/logout)
   useEffect(() => {
     const checkUser = () => {
-      const userId = localStorage.getItem('userId')
+      const userId = getUserId()
       if (userId !== currentUserId) {
         setCurrentUserId(userId)
         // Load the cart for the new user

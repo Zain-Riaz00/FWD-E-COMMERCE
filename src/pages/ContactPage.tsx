@@ -36,7 +36,18 @@ export default function ContactPage() {
     setIsSubmitting(true)
     
     try {
-      const userId = localStorage.getItem('userId') || undefined
+      // Get user ID from localStorage
+      let userId: string | undefined
+      const userJson = localStorage.getItem('user')
+      if (userJson) {
+        try {
+          const user = JSON.parse(userJson)
+          userId = user._id
+        } catch (e) {
+          console.error('Failed to parse user data:', e)
+        }
+      }
+      
       const result = await feedbackAPI.submit({
         userName: formData.name,
         userEmail: formData.email,

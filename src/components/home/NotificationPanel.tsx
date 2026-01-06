@@ -106,7 +106,18 @@ export default function NotificationPanel() {
   // Load notifications from API
   const loadNotifications = async () => {
     try {
-      const userId = localStorage.getItem('userId') || undefined
+      // Get user from localStorage (stored as JSON object under 'user' key)
+      let userId: string | undefined
+      const userJson = localStorage.getItem('user')
+      if (userJson) {
+        try {
+          const user = JSON.parse(userJson)
+          userId = user._id
+        } catch (e) {
+          console.error('Failed to parse user data:', e)
+        }
+      }
+      
       const notifications = await notificationAPI.getAll(userId, isAdmin)
       
       // Transform API response to match component interface
@@ -170,7 +181,16 @@ export default function NotificationPanel() {
   }, [feed])
 
   const handleMarkAllRead = async () => {
-    const userId = localStorage.getItem('userId') || undefined
+    let userId: string | undefined
+    const userJson = localStorage.getItem('user')
+    if (userJson) {
+      try {
+        const user = JSON.parse(userJson)
+        userId = user._id
+      } catch (e) {
+        console.error('Failed to parse user data:', e)
+      }
+    }
     const success = await notificationAPI.markAllAsRead(userId, isAdmin)
     if (success) {
       setFeed(prev => prev.map(item => ({ ...item, status: 'read' as const })))

@@ -246,21 +246,20 @@ export const orderAPI = {
   async getMyOrders(): Promise<any[]> {
     // Get user from localStorage (stored as JSON object under 'user' key)
     const userJson = localStorage.getItem('user')
-    let userId = localStorage.getItem('userId')
-    let userEmail = localStorage.getItem('userEmail')
+    let userId: string | undefined
+    let userEmail: string | undefined
     
-    // Parse the user object if it exists
     if (userJson) {
       try {
         const user = JSON.parse(userJson)
-        userId = user._id || userId
-        userEmail = user.email || userEmail
+        userId = user._id
+        userEmail = user.email
       } catch (e) {
         console.error('Failed to parse user data:', e)
       }
     }
     
-    return this.getAll(userId || undefined, userEmail || undefined)
+    return this.getAll(userId, userEmail)
   },
 
   // Get single order
