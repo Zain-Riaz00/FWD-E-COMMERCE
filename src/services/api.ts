@@ -237,6 +237,30 @@ export const orderAPI = {
     }
   },
 
+  // Get single order
+  async getById(id: string): Promise<any> {
+    try {
+      const response = await fetch(`${API_URL}/orders/${id}`)
+      if (!response.ok) throw new Error('Failed to fetch order')
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching order:', error)
+      return null
+    }
+  },
+
+  // Track order by order number
+  async track(orderNumber: string): Promise<any> {
+    try {
+      const response = await fetch(`${API_URL}/orders/track/${orderNumber}`)
+      if (!response.ok) throw new Error('Order not found')
+      return await response.json()
+    } catch (error) {
+      console.error('Error tracking order:', error)
+      return null
+    }
+  },
+
   // Create order
   async create(orderData: any): Promise<any> {
     try {
@@ -253,18 +277,255 @@ export const orderAPI = {
     }
   },
 
-  // Update order status
-  async updateStatus(id: string, status: string): Promise<any> {
+  // Update order status (admin)
+  async updateStatus(id: string, status: string, note?: string, trackingNumber?: string): Promise<any> {
     try {
       const response = await fetch(`${API_URL}/orders/${id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, note, trackingNumber }),
       })
       if (!response.ok) throw new Error('Failed to update order')
       return await response.json()
     } catch (error) {
       console.error('Error updating order:', error)
+      return null
+    }
+  }
+}
+
+// Notification API
+export const notificationAPI = {
+  // Get notifications
+  async getAll(userId?: string, isAdmin?: boolean): Promise<any[]> {
+    try {
+      const params = new URLSearchParams()
+      if (userId) params.append('userId', userId)
+      if (isAdmin) params.append('isAdmin', 'true')
+      
+      const response = await fetch(`${API_URL}/notifications?${params}`)
+      if (!response.ok) throw new Error('Failed to fetch notifications')
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching notifications:', error)
+      return []
+    }
+  },
+
+  // Create notification
+  async create(data: any): Promise<any> {
+    try {
+      const response = await fetch(`${API_URL}/notifications`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      if (!response.ok) throw new Error('Failed to create notification')
+      return await response.json()
+    } catch (error) {
+      console.error('Error creating notification:', error)
+      return null
+    }
+  },
+
+  // Mark as read
+  async markAsRead(id: string): Promise<any> {
+    try {
+      const response = await fetch(`${API_URL}/notifications/${id}/read`, {
+        method: 'PATCH',
+      })
+      if (!response.ok) throw new Error('Failed to mark notification as read')
+      return await response.json()
+    } catch (error) {
+      console.error('Error marking notification as read:', error)
+      return null
+    }
+  },
+
+  // Mark all as read
+  async markAllAsRead(userId?: string, isAdmin?: boolean): Promise<boolean> {
+    try {
+      const response = await fetch(`${API_URL}/notifications/read-all`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, isAdmin }),
+      })
+      return response.ok
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error)
+      return false
+    }
+  }
+}
+
+// Feedback API
+export const feedbackAPI = {
+  // Get all feedback (admin)
+  async getAll(): Promise<any[]> {
+    try {
+      const response = await fetch(`${API_URL}/feedback`)
+      if (!response.ok) throw new Error('Failed to fetch feedback')
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching feedback:', error)
+      return []
+    }
+  },
+
+  // Submit feedback (user)
+  async submit(data: { userName: string; userEmail: string; type?: string; subject?: string; message: string; userId?: string }): Promise<any> {
+    try {
+      const response = await fetch(`${API_URL}/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      if (!response.ok) throw new Error('Failed to submit feedback')
+      return await response.json()
+    } catch (error) {
+      console.error('Error submitting feedback:', error)
+      return null
+    }
+  },
+
+  // Reply to feedback (admin)
+  async reply(id: string, reply: string, status?: string): Promise<any> {
+    try {
+      const response = await fetch(`${API_URL}/feedback/${id}/reply`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reply, status }),
+      })
+      if (!response.ok) throw new Error('Failed to reply to feedback')
+      return await response.json()
+    } catch (error) {
+      console.error('Error replying to feedback:', error)
+      return null
+    }
+  }
+}
+
+// Discount API
+export const discountAPI = {
+  // Get all discounts (admin)
+  async getAll(): Promise<any[]> {
+    try {
+      const response = await fetch(`${API_URL}/discounts`)
+      if (!response.ok) throw new Error('Failed to fetch discounts')
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching discounts:', error)
+      return []
+    }
+  },
+
+  // Create discount (admin)
+  async create(data: any): Promise<any> {
+    try {
+      const response = await fetch(`${API_URL}/discounts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      if (!response.ok) throw new Error('Failed to create discount')
+      return await response.json()
+    } catch (error) {
+      console.error('Error creating discount:', error)
+      return null
+    }
+  },
+
+  // Validate discount code
+  async validate(code: string, orderTotal: number): Promise<{ valid: boolean; discount?: any; discountAmount?: number; error?: string }> {
+    try {
+      const response = await fetch(`${API_URL}/discounts/validate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, orderTotal }),
+      })
+      return await response.json()
+    } catch (error) {
+      console.error('Error validating discount:', error)
+      return { valid: false, error: 'Failed to validate discount' }
+    }
+  },
+
+  // Delete discount (admin)
+  async delete(id: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${API_URL}/discounts/${id}`, {
+        method: 'DELETE',
+      })
+      return response.ok
+    } catch (error) {
+      console.error('Error deleting discount:', error)
+      return false
+    }
+  }
+}
+
+// Review API
+export const reviewAPI = {
+  // Get all reviews
+  async getAll(productId?: string, status?: string): Promise<any[]> {
+    try {
+      const params = new URLSearchParams()
+      if (productId) params.append('productId', productId)
+      if (status) params.append('status', status)
+      
+      const response = await fetch(`${API_URL}/reviews?${params}`)
+      if (!response.ok) throw new Error('Failed to fetch reviews')
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching reviews:', error)
+      return []
+    }
+  },
+
+  // Submit review (user)
+  async submit(data: any): Promise<any> {
+    try {
+      const response = await fetch(`${API_URL}/reviews`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      if (!response.ok) throw new Error('Failed to submit review')
+      return await response.json()
+    } catch (error) {
+      console.error('Error submitting review:', error)
+      return null
+    }
+  },
+
+  // Update review status (admin)
+  async updateStatus(id: string, status: string): Promise<any> {
+    try {
+      const response = await fetch(`${API_URL}/reviews/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+      if (!response.ok) throw new Error('Failed to update review')
+      return await response.json()
+    } catch (error) {
+      console.error('Error updating review:', error)
+      return null
+    }
+  },
+
+  // Reply to review (admin)
+  async reply(id: string, replyText: string): Promise<any> {
+    try {
+      const response = await fetch(`${API_URL}/reviews/${id}/reply`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ replyText }),
+      })
+      if (!response.ok) throw new Error('Failed to reply to review')
+      return await response.json()
+    } catch (error) {
+      console.error('Error replying to review:', error)
       return null
     }
   }
@@ -296,10 +557,26 @@ export const logsAPI = {
     }
   },
 
-  // Log an action
-  async logAction(action: { type: string; description: string; userId?: string }): Promise<any> {
+  // Log admin action
+  async logAdminAction(action: { action: string; description?: string; adminId?: string; adminEmail?: string; targetType?: string; targetId?: string }): Promise<any> {
     try {
       const response = await fetch(`${API_URL}/admin/logs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(action),
+      })
+      if (!response.ok) throw new Error('Failed to log action')
+      return await response.json()
+    } catch (error) {
+      console.error('Error logging action:', error)
+      return null
+    }
+  },
+
+  // Log user action
+  async logUserAction(action: { action: string; description?: string; userId?: string; userEmail?: string }): Promise<any> {
+    try {
+      const response = await fetch(`${API_URL}/admin/user-logs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(action),

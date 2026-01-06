@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { CheckCircle, Package, Truck, MapPin, Calendar } from 'lucide-react'
-import { safeSetItem } from '@/utils/storageUtils'
+import { CheckCircle, Package, Truck, MapPin, Calendar, AlertCircle } from 'lucide-react'
+import { orderAPI } from '@/services/api'
 import type { Product } from '@/types/product'
 
 interface OrderState {
@@ -22,9 +22,12 @@ export default function OrderConfirmationPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const state = location.state as OrderState | undefined
+  const orderCreatedRef = useRef(false)
 
-  // Generate order number on mount
-  const [orderNumber] = useState(() => `ORD-${Math.random().toString(36).substring(2, 10).toUpperCase()}`)
+  const [orderNumber, setOrderNumber] = useState<string>('')
+  const [orderId, setOrderId] = useState<string>('')
+  const [isCreating, setIsCreating] = useState(true)
+  const [error, setError] = useState('')
   
   const estimatedDelivery = useMemo(() => {
     const date = new Date()
@@ -38,39 +41,61 @@ export default function OrderConfirmationPage() {
       return
     }
 
-    try {
-      // Send notification
-      const notification = {
-        id: Date.now().toString(),
-        type: 'order' as const,
-        title: 'Order Confirmed! 🎉',
-        message: `Your order #${orderNumber} for ${state.product.name} has been confirmed and will be delivered soon.`,
-        time: new Date().toISOString(),
-        read: false,
-        imageUrl: state.product.imageUrl,
+    // Prevent duplicate order creation
+    if (orderCreatedRef.current) return
+    orderCreatedRef.current = true
+
+    const createOrder = async () => {
+      try {
+        const userId = localStorage.getItem('userId') || undefined
+        const userEmail = localStorage.getItem('userEmail') || undefined
+        const userName = localStorage.getItem('userName') || state.address.fullName
+        
+        const orderData = {
+          userId,
+          userEmail,
+          userName,
+          items: [{
+            productId: state.product._id || state.product.id,
+            name: state.product.name,
+            quantity: state.quantity,
+            price: state.product.price,
+            imageUrl: state.product.imageUrl
+          }],
+          totalAmount: state.product.price * state.quantity,
+          shippingAddress: {
+            fullName: state.address.fullName,
+            phone: state.address.phone,
+            street: state.address.address,
+            city: state.address.city,
+            state: state.address.state,
+            zipCode: state.address.zipCode,
+            country: 'USA'
+          },
+          paymentMethod: 'card'
+        }
+        
+        const result = await orderAPI.create(orderData)
+        
+        if (result && result._id) {
+          setOrderId(result._id)
+          setOrderNumber(result.orderNumber || `ORD-${result._id.slice(-8).toUpperCase()}`)
+          
+          // Trigger notification update
+          window.dispatchEvent(new CustomEvent('global-notifications-update'))
+        } else {
+          setError('Failed to create order. Please try again.')
+        }
+      } catch (err) {
+        console.error('Order creation failed:', err)
+        setError('An error occurred while creating your order.')
+      } finally {
+        setIsCreating(false)
       }
-
-      // Add to notifications with limit of 50 to prevent quota issues
-      const notifications = JSON.parse(localStorage.getItem('notifications') || '[]')
-      notifications.unshift(notification)
-      
-      // Keep only last 50 notifications
-      const limitedNotifications = notifications.slice(0, 50)
-      
-      // Use safe set to prevent quota errors
-      safeSetItem('notifications', JSON.stringify(limitedNotifications))
-
-      // Trigger custom event for notification update - use correct event name
-      window.dispatchEvent(new CustomEvent('global-notifications-update'))
-      window.dispatchEvent(new StorageEvent('storage', {
-        key: 'notifications',
-        newValue: JSON.stringify(limitedNotifications),
-      }))
-    } catch (error) {
-      console.error('Failed to save notification:', error)
-      // Continue anyway - don't block the user
     }
-  }, [state, navigate, orderNumber])
+
+    createOrder()
+  }, [state, navigate])
 
   if (!state?.product) {
     return (
@@ -84,6 +109,48 @@ export default function OrderConfirmationPage() {
           >
             Go to Home
           </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Loading state
+  if (isCreating) {
+    return (
+      <div className="min-h-screen pt-20 pb-16 bg-gradient-to-b from-[#0a0e1a] via-[#050810] to-[#0a0e1a] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-cyan-100">Processing your order...</h2>
+          <p className="text-cyan-300/70 mt-2">Please wait while we confirm your purchase.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen pt-20 pb-16 bg-gradient-to-b from-[#0a0e1a] via-[#050810] to-[#0a0e1a] flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-500/20 border-2 border-red-500 mb-4">
+            <AlertCircle className="h-8 w-8 text-red-400" />
+          </div>
+          <h1 className="text-2xl font-bold text-red-400 mb-2">Order Failed</h1>
+          <p className="text-cyan-300/70 mb-6">{error}</p>
+          <div className="flex gap-4 justify-center">
+            <button
+              onClick={() => navigate(-1)}
+              className="px-6 py-3 rounded-lg border border-cyan-400/30 text-cyan-300 hover:bg-cyan-500/10 transition-all"
+            >
+              Go Back
+            </button>
+            <button
+              onClick={() => navigate('/')}
+              className="px-6 py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold"
+            >
+              Go to Home
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -228,10 +295,10 @@ export default function OrderConfirmationPage() {
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => navigate('/notifications')}
+                onClick={() => navigate(`/order-tracking/${orderId}`)}
                 className="flex-1 px-8 py-4 rounded-xl border-2 border-cyan-400 bg-cyan-500/10 text-cyan-100 font-bold hover:bg-cyan-500/20 transition-all"
               >
-                View Notifications
+                Track Order
               </motion.button>
             </div>
           </div>

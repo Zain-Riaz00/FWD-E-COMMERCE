@@ -436,6 +436,669 @@ app.delete('/api/categories/:id', async (req, res) => {
   }
 });
 
+// ========== ORDER ROUTES ==========
+
+// Order Schema
+const orderSchema = new mongoose.Schema({
+  orderNumber: { type: String, required: true, unique: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  customerName: { type: String, required: true },
+  customerEmail: { type: String, required: true },
+  customerPhone: String,
+  items: [{
+    productId: String,
+    productName: String,
+    price: Number,
+    quantity: Number,
+    imageUrl: String
+  }],
+  totalAmount: { type: Number, required: true },
+  status: { 
+    type: String, 
+    enum: ['pending', 'confirmed', 'processing', 'shipped', 'out_for_delivery', 'delivered', 'cancelled'],
+    default: 'pending'
+  },
+  statusHistory: [{
+    status: String,
+    timestamp: { type: Date, default: Date.now },
+    note: String
+  }],
+  shippingAddress: {
+    fullName: String,
+    phone: String,
+    address: String,
+    city: String,
+    state: String,
+    zipCode: String
+  },
+  discountCode: String,
+  discountAmount: { type: Number, default: 0 },
+  trackingNumber: String,
+  estimatedDelivery: Date
+}, { timestamps: true });
+
+const Order = mongoose.model('Order', orderSchema);
+
+// GET - Fetch all orders
+app.get('/api/orders', async (req, res) => {
+  try {
+    const orders = await Order.find().sort({ createdAt: -1 });
+    console.log(`[GET] ${orders.length} orders fetched`);
+    res.json({ orders });
+  } catch (error) {
+    console.error('[GET] Error fetching orders:', error);
+    res.status(500).json({ error: 'Failed to fetch orders' });
+  }
+});
+
+// GET - Fetch single order
+app.get('/api/orders/:id', async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    res.json(order);
+  } catch (error) {
+    console.error('[GET] Error fetching order:', error);
+    res.status(500).json({ error: 'Failed to fetch order' });
+  }
+});
+
+// GET - Fetch order by order number
+app.get('/api/orders/track/:orderNumber', async (req, res) => {
+  try {
+    const order = await Order.findOne({ orderNumber: req.params.orderNumber });
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    res.json(order);
+  } catch (error) {
+    console.error('[GET] Error tracking order:', error);
+    res.status(500).json({ error: 'Failed to track order' });
+  }
+});
+
+// POST - Create order
+app.post('/api/orders', async (req, res) => {
+  try {
+    const orderData = req.body;
+    
+    // Generate order number if not provided
+    if (!orderData.orderNumber) {
+      orderData.orderNumber = `ORD-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    }
+    
+    // Set estimated delivery (5 days from now)
+    orderData.estimatedDelivery = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+    
+    // Add initial status to history
+    orderData.statusHistory = [{
+      status: 'pending',
+      timestamp: new Date(),
+      note: 'Order placed successfully'
+    }];
+    
+    const order = await Order.create(orderData);
+    console.log('[POST] Order created:', order.orderNumber);
+    
+    // Create notification for user
+    await Notification.create({
+      userId: order.userId,
+      type: 'order',
+      title: 'Order Confirmed! 🎉',
+      message: `Your order ${order.orderNumber} has been placed successfully.`,
+      meta: `Total: Rs. ${order.totalAmount}`,
+      relatedId: order._id.toString(),
+      relatedType: 'order'
+    });
+    
+    // Create notification for admin
+    await Notification.create({
+      type: 'order',
+      isAdminNotification: true,
+      title: 'New Order Received',
+      message: `Order ${order.orderNumber} from ${order.customerName}`,
+      meta: `Total: Rs. ${order.totalAmount}`,
+      relatedId: order._id.toString(),
+      relatedType: 'order'
+    });
+    
+    res.status(201).json(order);
+  } catch (error) {
+    console.error('[POST] Error creating order:', error);
+    res.status(400).json({ error: 'Failed to create order', details: error.message });
+  }
+});
+
+// PATCH - Update order status (Admin)
+app.patch('/api/orders/:id/status', async (req, res) => {
+  try {
+    const { status, note, trackingNumber } = req.body;
+    
+    const updateData = { 
+      status,
+      $push: { 
+        statusHistory: { 
+          status, 
+          timestamp: new Date(), 
+          note: note || `Status updated to ${status}` 
+        } 
+      }
+    };
+    
+    if (trackingNumber) {
+      updateData.trackingNumber = trackingNumber;
+    }
+    
+    const order = await Order.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true }
+    );
+    
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    
+    console.log('[PATCH] Order status updated:', order.orderNumber, '->', status);
+    
+    // Create notification for customer
+    const statusMessages = {
+      confirmed: 'Your order has been confirmed!',
+      processing: 'Your order is being processed.',
+      shipped: 'Your order has been shipped!',
+      out_for_delivery: 'Your order is out for delivery!',
+      delivered: 'Your order has been delivered! 🎉',
+      cancelled: 'Your order has been cancelled.'
+    };
+    
+    await Notification.create({
+      userId: order.userId,
+      type: 'order',
+      title: `Order ${status.replace('_', ' ').toUpperCase()}`,
+      message: statusMessages[status] || `Order ${order.orderNumber} status: ${status}`,
+      meta: trackingNumber ? `Tracking: ${trackingNumber}` : undefined,
+      relatedId: order._id.toString(),
+      relatedType: 'order'
+    });
+    
+    res.json(order);
+  } catch (error) {
+    console.error('[PATCH] Error updating order:', error);
+    res.status(400).json({ error: 'Failed to update order' });
+  }
+});
+
+// ========== NOTIFICATION ROUTES ==========
+
+// Notification Schema
+const notificationSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  type: { 
+    type: String, 
+    enum: ['order', 'product', 'reward', 'system', 'reply', 'contact', 'inventory', 'feedback', 'admin_action', 'recommendation'],
+    required: true
+  },
+  title: { type: String, required: true },
+  message: { type: String, required: true },
+  meta: String,
+  status: { type: String, enum: ['new', 'read'], default: 'new' },
+  isAdminNotification: { type: Boolean, default: false },
+  relatedId: String,
+  relatedType: String,
+  linkTo: String
+}, { timestamps: true });
+
+const Notification = mongoose.model('Notification', notificationSchema);
+
+// GET - Fetch notifications (user or admin)
+app.get('/api/notifications', async (req, res) => {
+  try {
+    const { userId, isAdmin } = req.query;
+    
+    let query = {};
+    if (isAdmin === 'true') {
+      query.isAdminNotification = true;
+    } else if (userId) {
+      query.$or = [
+        { userId: userId },
+        { userId: null, isAdminNotification: false }
+      ];
+    }
+    
+    const notifications = await Notification.find(query).sort({ createdAt: -1 }).limit(50);
+    console.log(`[GET] ${notifications.length} notifications fetched`);
+    res.json(notifications);
+  } catch (error) {
+    console.error('[GET] Error fetching notifications:', error);
+    res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
+// POST - Create notification
+app.post('/api/notifications', async (req, res) => {
+  try {
+    const notification = await Notification.create(req.body);
+    console.log('[POST] Notification created:', notification.title);
+    res.status(201).json(notification);
+  } catch (error) {
+    console.error('[POST] Error creating notification:', error);
+    res.status(400).json({ error: 'Failed to create notification' });
+  }
+});
+
+// PATCH - Mark notification as read
+app.patch('/api/notifications/:id/read', async (req, res) => {
+  try {
+    const notification = await Notification.findByIdAndUpdate(
+      req.params.id,
+      { status: 'read' },
+      { new: true }
+    );
+    if (!notification) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+    res.json(notification);
+  } catch (error) {
+    console.error('[PATCH] Error updating notification:', error);
+    res.status(400).json({ error: 'Failed to update notification' });
+  }
+});
+
+// PATCH - Mark all notifications as read
+app.patch('/api/notifications/read-all', async (req, res) => {
+  try {
+    const { userId, isAdmin } = req.body;
+    
+    let query = { status: 'new' };
+    if (isAdmin) {
+      query.isAdminNotification = true;
+    } else if (userId) {
+      query.userId = userId;
+    }
+    
+    await Notification.updateMany(query, { status: 'read' });
+    console.log('[PATCH] All notifications marked as read');
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[PATCH] Error marking notifications as read:', error);
+    res.status(400).json({ error: 'Failed to update notifications' });
+  }
+});
+
+// ========== FEEDBACK/CONTACT ROUTES ==========
+
+// Feedback Schema
+const feedbackSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  userName: { type: String, required: true },
+  userEmail: { type: String, required: true },
+  type: { type: String, enum: ['contact', 'feedback', 'complaint', 'suggestion'], default: 'feedback' },
+  subject: String,
+  message: { type: String, required: true },
+  status: { type: String, enum: ['pending', 'in_progress', 'resolved'], default: 'pending' },
+  priority: { type: String, enum: ['low', 'medium', 'high'], default: 'medium' },
+  adminReply: String,
+  repliedAt: Date
+}, { timestamps: true });
+
+const Feedback = mongoose.model('Feedback', feedbackSchema);
+
+// GET - Fetch all feedback (admin)
+app.get('/api/feedback', async (req, res) => {
+  try {
+    const feedback = await Feedback.find().sort({ createdAt: -1 });
+    console.log(`[GET] ${feedback.length} feedback items fetched`);
+    res.json(feedback);
+  } catch (error) {
+    console.error('[GET] Error fetching feedback:', error);
+    res.status(500).json({ error: 'Failed to fetch feedback' });
+  }
+});
+
+// POST - Submit feedback (user)
+app.post('/api/feedback', async (req, res) => {
+  try {
+    const feedback = await Feedback.create(req.body);
+    console.log('[POST] Feedback submitted:', feedback.subject || 'No subject');
+    
+    // Notify admin
+    await Notification.create({
+      type: 'feedback',
+      isAdminNotification: true,
+      title: 'New Feedback Received',
+      message: `${feedback.userName}: ${feedback.subject || feedback.message.substring(0, 50)}`,
+      meta: feedback.type.charAt(0).toUpperCase() + feedback.type.slice(1),
+      relatedId: feedback._id.toString(),
+      relatedType: 'feedback'
+    });
+    
+    res.status(201).json(feedback);
+  } catch (error) {
+    console.error('[POST] Error submitting feedback:', error);
+    res.status(400).json({ error: 'Failed to submit feedback' });
+  }
+});
+
+// PATCH - Reply to feedback (admin)
+app.patch('/api/feedback/:id/reply', async (req, res) => {
+  try {
+    const { reply, status } = req.body;
+    
+    const feedback = await Feedback.findByIdAndUpdate(
+      req.params.id,
+      { 
+        adminReply: reply, 
+        repliedAt: new Date(),
+        status: status || 'resolved'
+      },
+      { new: true }
+    );
+    
+    if (!feedback) {
+      return res.status(404).json({ error: 'Feedback not found' });
+    }
+    
+    console.log('[PATCH] Feedback replied:', feedback._id);
+    
+    // Notify user
+    if (feedback.userId) {
+      await Notification.create({
+        userId: feedback.userId,
+        type: 'reply',
+        title: 'Your feedback has been answered!',
+        message: reply.substring(0, 100) + (reply.length > 100 ? '...' : ''),
+        relatedId: feedback._id.toString(),
+        relatedType: 'feedback'
+      });
+    }
+    
+    res.json(feedback);
+  } catch (error) {
+    console.error('[PATCH] Error replying to feedback:', error);
+    res.status(400).json({ error: 'Failed to reply to feedback' });
+  }
+});
+
+// ========== DISCOUNT ROUTES ==========
+
+// Discount Schema
+const discountSchema = new mongoose.Schema({
+  code: { type: String, required: true, unique: true, uppercase: true },
+  type: { type: String, enum: ['percentage', 'fixed'], required: true },
+  value: { type: Number, required: true },
+  minOrder: { type: Number, default: 0 },
+  maxUses: { type: Number, default: null },
+  usageCount: { type: Number, default: 0 },
+  expiresAt: { type: Date, required: true },
+  isActive: { type: Boolean, default: true }
+}, { timestamps: true });
+
+const Discount = mongoose.model('Discount', discountSchema);
+
+// GET - Fetch all discounts (admin)
+app.get('/api/discounts', async (req, res) => {
+  try {
+    const discounts = await Discount.find().sort({ createdAt: -1 });
+    res.json(discounts);
+  } catch (error) {
+    console.error('[GET] Error fetching discounts:', error);
+    res.status(500).json({ error: 'Failed to fetch discounts' });
+  }
+});
+
+// POST - Create discount (admin)
+app.post('/api/discounts', async (req, res) => {
+  try {
+    const discount = await Discount.create(req.body);
+    console.log('[POST] Discount created:', discount.code);
+    res.status(201).json(discount);
+  } catch (error) {
+    console.error('[POST] Error creating discount:', error);
+    res.status(400).json({ error: 'Failed to create discount', details: error.message });
+  }
+});
+
+// POST - Validate discount code
+app.post('/api/discounts/validate', async (req, res) => {
+  try {
+    const { code, orderTotal } = req.body;
+    
+    const discount = await Discount.findOne({ 
+      code: code.toUpperCase(), 
+      isActive: true,
+      expiresAt: { $gt: new Date() }
+    });
+    
+    if (!discount) {
+      return res.status(404).json({ valid: false, error: 'Invalid or expired discount code' });
+    }
+    
+    if (discount.maxUses && discount.usageCount >= discount.maxUses) {
+      return res.status(400).json({ valid: false, error: 'Discount code has reached maximum uses' });
+    }
+    
+    if (orderTotal < discount.minOrder) {
+      return res.status(400).json({ valid: false, error: `Minimum order of Rs. ${discount.minOrder} required` });
+    }
+    
+    const discountAmount = discount.type === 'percentage' 
+      ? (orderTotal * discount.value / 100)
+      : discount.value;
+    
+    res.json({ 
+      valid: true, 
+      discount,
+      discountAmount: Math.min(discountAmount, orderTotal)
+    });
+  } catch (error) {
+    console.error('[POST] Error validating discount:', error);
+    res.status(500).json({ error: 'Failed to validate discount' });
+  }
+});
+
+// DELETE - Delete discount (admin)
+app.delete('/api/discounts/:id', async (req, res) => {
+  try {
+    const discount = await Discount.findByIdAndDelete(req.params.id);
+    if (!discount) {
+      return res.status(404).json({ error: 'Discount not found' });
+    }
+    console.log('[DELETE] Discount deleted:', discount.code);
+    res.json({ message: 'Discount deleted successfully' });
+  } catch (error) {
+    console.error('[DELETE] Error deleting discount:', error);
+    res.status(500).json({ error: 'Failed to delete discount' });
+  }
+});
+
+// ========== REVIEW ROUTES ==========
+
+// Review Schema
+const reviewSchema = new mongoose.Schema({
+  productId: { type: String, required: true },
+  productName: String,
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  userName: { type: String, required: true },
+  userEmail: String,
+  rating: { type: Number, required: true, min: 1, max: 5 },
+  comment: { type: String, required: true },
+  status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  replied: { type: Boolean, default: false },
+  replyText: String,
+  repliedAt: Date
+}, { timestamps: true });
+
+const Review = mongoose.model('Review', reviewSchema);
+
+// GET - Fetch all reviews (admin)
+app.get('/api/reviews', async (req, res) => {
+  try {
+    const { productId, status } = req.query;
+    let query = {};
+    if (productId) query.productId = productId;
+    if (status) query.status = status;
+    
+    const reviews = await Review.find(query).sort({ createdAt: -1 });
+    res.json(reviews);
+  } catch (error) {
+    console.error('[GET] Error fetching reviews:', error);
+    res.status(500).json({ error: 'Failed to fetch reviews' });
+  }
+});
+
+// POST - Submit review (user)
+app.post('/api/reviews', async (req, res) => {
+  try {
+    const review = await Review.create(req.body);
+    console.log('[POST] Review submitted for product:', review.productId);
+    
+    // Notify admin
+    await Notification.create({
+      type: 'feedback',
+      isAdminNotification: true,
+      title: 'New Product Review',
+      message: `${review.userName} rated ${review.productName || 'a product'} ${review.rating}/5 stars`,
+      meta: review.comment.substring(0, 50),
+      relatedId: review._id.toString(),
+      relatedType: 'review'
+    });
+    
+    res.status(201).json(review);
+  } catch (error) {
+    console.error('[POST] Error submitting review:', error);
+    res.status(400).json({ error: 'Failed to submit review' });
+  }
+});
+
+// PATCH - Update review status (admin)
+app.patch('/api/reviews/:id/status', async (req, res) => {
+  try {
+    const { status } = req.body;
+    const review = await Review.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    );
+    if (!review) {
+      return res.status(404).json({ error: 'Review not found' });
+    }
+    console.log('[PATCH] Review status updated:', review._id, '->', status);
+    res.json(review);
+  } catch (error) {
+    console.error('[PATCH] Error updating review:', error);
+    res.status(400).json({ error: 'Failed to update review' });
+  }
+});
+
+// PATCH - Reply to review (admin)
+app.patch('/api/reviews/:id/reply', async (req, res) => {
+  try {
+    const { replyText } = req.body;
+    const review = await Review.findByIdAndUpdate(
+      req.params.id,
+      { replied: true, replyText, repliedAt: new Date() },
+      { new: true }
+    );
+    if (!review) {
+      return res.status(404).json({ error: 'Review not found' });
+    }
+    
+    // Notify user
+    if (review.userId) {
+      await Notification.create({
+        userId: review.userId,
+        type: 'reply',
+        title: 'Your review got a reply!',
+        message: replyText.substring(0, 100),
+        relatedId: review.productId,
+        relatedType: 'product',
+        linkTo: `/products/${review.productId}`
+      });
+    }
+    
+    console.log('[PATCH] Review replied:', review._id);
+    res.json(review);
+  } catch (error) {
+    console.error('[PATCH] Error replying to review:', error);
+    res.status(400).json({ error: 'Failed to reply to review' });
+  }
+});
+
+// ========== ADMIN LOGS ROUTES ==========
+
+// Admin Log Schema
+const adminLogSchema = new mongoose.Schema({
+  adminId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  adminEmail: String,
+  action: { type: String, required: true },
+  description: String,
+  targetType: String,
+  targetId: String,
+  metadata: mongoose.Schema.Types.Mixed
+}, { timestamps: true });
+
+const AdminLog = mongoose.model('AdminLog', adminLogSchema);
+
+// GET - Fetch admin logs
+app.get('/api/admin/logs', async (req, res) => {
+  try {
+    const logs = await AdminLog.find().sort({ createdAt: -1 }).limit(100);
+    res.json(logs);
+  } catch (error) {
+    console.error('[GET] Error fetching admin logs:', error);
+    res.status(500).json({ error: 'Failed to fetch admin logs' });
+  }
+});
+
+// POST - Create admin log
+app.post('/api/admin/logs', async (req, res) => {
+  try {
+    const log = await AdminLog.create(req.body);
+    console.log('[POST] Admin log created:', log.action);
+    res.status(201).json(log);
+  } catch (error) {
+    console.error('[POST] Error creating admin log:', error);
+    res.status(400).json({ error: 'Failed to create log' });
+  }
+});
+
+// ========== USER ACTIVITY LOGS ==========
+
+// User Log Schema
+const userLogSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  userEmail: String,
+  action: { type: String, required: true },
+  description: String,
+  metadata: mongoose.Schema.Types.Mixed
+}, { timestamps: true });
+
+const UserLog = mongoose.model('UserLog', userLogSchema);
+
+// GET - Fetch user logs
+app.get('/api/admin/user-logs', async (req, res) => {
+  try {
+    const logs = await UserLog.find().sort({ createdAt: -1 }).limit(100);
+    res.json(logs);
+  } catch (error) {
+    console.error('[GET] Error fetching user logs:', error);
+    res.status(500).json({ error: 'Failed to fetch user logs' });
+  }
+});
+
+// POST - Create user log
+app.post('/api/admin/user-logs', async (req, res) => {
+  try {
+    const log = await UserLog.create(req.body);
+    res.status(201).json(log);
+  } catch (error) {
+    console.error('[POST] Error creating user log:', error);
+    res.status(400).json({ error: 'Failed to create log' });
+  }
+});
+
 // ============================================
 // START SERVER
 // ============================================

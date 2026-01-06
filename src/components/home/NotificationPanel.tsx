@@ -1,55 +1,27 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, BellRing, Gift, Megaphone, Package2, ShieldCheck, Sparkles, Mail, AlertTriangle, MessageSquare, Users, Volume2, VolumeX } from 'lucide-react'
-import type { ActivityNotification } from '@/utils/notificationFeed'
-import { GLOBAL_NOTIFICATION_KEY, combineWithSeeds, loadGlobalNotifications, markAllLiveNotificationsRead } from '@/utils/notificationFeed'
 import { useAdmin } from '@/contexts/AdminContext'
+import { notificationAPI } from '@/services/api'
 
 // Silent mode storage key
 const SILENT_MODE_KEY = 'notification_silent_mode'
 
-const seedNotifications: ActivityNotification[] = [
-  {
-    id: 'seed-order-2148',
-    type: 'order',
-    title: 'Order #ECO-2148 delivered',
-    message: 'Your workstation bundle just arrived. Let us know how it performs.',
-    timestamp: '2025-11-19T09:20:00.000Z',
-    meta: 'Courier delivered to doorstep',
-    status: 'read',
-    source: 'seed',
-  },
-  {
-    id: 'seed-product-aurora',
-    type: 'product',
-    title: 'New drop: Aurora Pro monitor',
-    message: '34 in mini-LED panel with 165 Hz refresh. Limited early access pricing is live.',
-    timestamp: '2025-11-18T16:45:00.000Z',
-    meta: 'Ships November 28',
-    status: 'read',
-    source: 'seed',
-  },
-  {
-    id: 'seed-reward-boost',
-    type: 'reward',
-    title: 'Loyalty boost unlocked',
-    message: 'You crossed 2500 XP. Enjoy a 12 percent accessory voucher valid this week.',
-    timestamp: '2025-11-17T11:10:00.000Z',
-    meta: 'Code: LEVELUP12',
-    status: 'new',
-    source: 'seed',
-  },
-  {
-    id: 'seed-system-holiday',
-    type: 'system',
-    title: 'Holiday shipping update',
-    message: 'Express slots are filling fast. Schedule deliveries two days earlier to avoid delays.',
-    timestamp: '2025-11-16T08:00:00.000Z',
-    meta: 'Applies to EU and MENA regions',
-    status: 'read',
-    source: 'seed',
-  },
-]
+interface Notification {
+  _id?: string
+  id?: string
+  type: string
+  title: string
+  message: string
+  meta?: string
+  status: 'new' | 'read'
+  createdAt?: string
+  timestamp?: string
+  isAdminNotification?: boolean
+  relatedId?: string
+  relatedType?: string
+  linkTo?: string
+}
 
 const typeIcon = {
   order: Package2,
@@ -99,8 +71,6 @@ const adminFilterConfig = [
 
 type FilterKey = string
 
-const buildFeed = () => combineWithSeeds(seedNotifications, loadGlobalNotifications())
-
 const formatTimeAgo = (ts: string) => {
   const delta = Date.now() - new Date(ts).getTime()
   const minutes = Math.floor(delta / 60000)
@@ -113,7 +83,8 @@ const formatTimeAgo = (ts: string) => {
 }
 
 export default function NotificationPanel() {
-  const [feed, setFeed] = useState<ActivityNotification[]>(() => buildFeed())
+  const [feed, setFeed] = useState<Notification[]>([])
+  const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<FilterKey>('all')
   const [isSilent, setIsSilent] = useState(() => {
     if (typeof window === 'undefined') return false
@@ -132,22 +103,43 @@ export default function NotificationPanel() {
     localStorage.setItem(SILENT_MODE_KEY, String(newValue))
   }
 
+  // Load notifications from API
+  const loadNotifications = async () => {
+    try {
+      const userId = localStorage.getItem('userId') || undefined
+      const notifications = await notificationAPI.getAll(userId, isAdmin)
+      
+      // Transform API response to match component interface
+      const transformed: Notification[] = notifications.map((n: any) => ({
+        ...n,
+        id: n._id || n.id,
+        timestamp: n.createdAt || n.timestamp,
+        status: n.status || 'new'
+      }))
+      
+      setFeed(transformed)
+    } catch (error) {
+      console.error('Failed to load notifications:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
-    setFeed(buildFeed())
-    if (typeof window === 'undefined') return
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === GLOBAL_NOTIFICATION_KEY) {
-        setFeed(buildFeed())
-      }
-    }
-    const handleCustom = () => setFeed(buildFeed())
-    window.addEventListener('storage', handleStorage)
-    window.addEventListener('global-notifications-update', handleCustom as EventListener)
+    loadNotifications()
+    
+    // Refresh notifications periodically
+    const interval = setInterval(loadNotifications, 30000) // Every 30 seconds
+    
+    // Listen for notification updates
+    const handleUpdate = () => loadNotifications()
+    window.addEventListener('global-notifications-update', handleUpdate)
+    
     return () => {
-      window.removeEventListener('storage', handleStorage)
-      window.removeEventListener('global-notifications-update', handleCustom as EventListener)
+      clearInterval(interval)
+      window.removeEventListener('global-notifications-update', handleUpdate)
     }
-  }, [])
+  }, [isAdmin])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -177,14 +169,12 @@ export default function NotificationPanel() {
     return { orders, rewards, updates, replies, unread }
   }, [feed])
 
-  const handleMarkAllRead = () => {
-    setFeed(prev => {
-      const next: ActivityNotification[] = prev.map(item =>
-        item.status === 'new' ? { ...item, status: 'read' as const } : item
-      )
-      markAllLiveNotificationsRead(next)
-      return next
-    })
+  const handleMarkAllRead = async () => {
+    const userId = localStorage.getItem('userId') || undefined
+    const success = await notificationAPI.markAllAsRead(userId, isAdmin)
+    if (success) {
+      setFeed(prev => prev.map(item => ({ ...item, status: 'read' as const })))
+    }
   }
 
   return (
@@ -287,37 +277,45 @@ export default function NotificationPanel() {
           <div className="rounded-2xl border border-white/5 bg-black/20 p-5 backdrop-blur">
             <div className="flex items-center justify-between text-sm">
               <p className="text-white/80">Live timeline</p>
-              <span className="text-xs text-zinc-400">Showing {filteredFeed.length} updates</span>
+              <span className="text-xs text-zinc-400">
+                {loading ? 'Loading...' : `Showing ${filteredFeed.length} updates`}
+              </span>
             </div>
             <div className="mt-4 max-h-[420px] space-y-3 overflow-y-auto pr-1">
-              {filteredFeed.length === 0 ? (
+              {loading ? (
+                <div className="flex items-center justify-center py-10">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
+                </div>
+              ) : filteredFeed.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-white/10 py-10 text-center text-sm text-zinc-400">
-                  Nothing in this channel yet.
+                  No notifications yet. Activities will appear here.
                 </div>
               ) : (
                 filteredFeed.map(item => {
                   const Icon = typeIcon[item.type as keyof typeof typeIcon] || BellRing
                   const accent = typeAccent[item.type] || typeAccent.system
                   const isRead = item.status === 'read'
+                  const itemTimestamp = item.timestamp || item.createdAt || new Date().toISOString()
                   
                   // Determine navigation link based on notification type
                   const getNavigationLink = () => {
-                    const meta = item as any
-                    if (meta.linkTo) return meta.linkTo
+                    if (item.linkTo) return item.linkTo
                     
                     switch(item.type) {
                       case 'reply':
-                        return meta.productId ? `/products/${meta.productId}#comments` : '/comments'
+                        return item.relatedType === 'product' && item.relatedId 
+                          ? `/products/${item.relatedId}#comments` 
+                          : '/comments'
                       case 'inventory':
                         return '/inventory-alerts'
                       case 'feedback':
                         return '/feedback'
                       case 'order':
-                        return '/orders'
+                        return item.relatedId ? `/orders/${item.relatedId}` : '/orders'
                       case 'contact':
                         return '/feedback'
                       case 'product':
-                        return meta.productId ? `/products/${meta.productId}` : '/products'
+                        return item.relatedId ? `/products/${item.relatedId}` : '/products'
                       case 'admin_action':
                         return '/admin-logs'
                       default:
@@ -327,7 +325,14 @@ export default function NotificationPanel() {
                   
                   const linkTo = getNavigationLink()
                   
-                  const handleClick = () => {
+                  const handleClick = async () => {
+                    // Mark as read when clicked
+                    if (item.status === 'new' && item._id) {
+                      await notificationAPI.markAsRead(item._id)
+                      setFeed(prev => prev.map(n => 
+                        n._id === item._id ? { ...n, status: 'read' as const } : n
+                      ))
+                    }
                     if (linkTo) {
                       navigate(linkTo)
                     }
@@ -335,7 +340,7 @@ export default function NotificationPanel() {
                   
                   return (
                     <div
-                      key={item.id}
+                      key={item.id || item._id}
                       onClick={handleClick}
                       className={`group flex items-start gap-4 rounded-2xl border border-white/5 bg-white/5 px-4 py-3 transition hover:border-cyan-400/40 hover:bg-white/10 ${linkTo ? 'cursor-pointer' : ''} ${isRead ? 'opacity-50' : ''}`}
                     >
@@ -350,7 +355,7 @@ export default function NotificationPanel() {
                               New
                             </span>
                           )}
-                          <span className="ml-auto text-xs text-zinc-400">{formatTimeAgo(item.timestamp)}</span>
+                          <span className="ml-auto text-xs text-zinc-400">{formatTimeAgo(itemTimestamp)}</span>
                         </div>
                         <p className="mt-1 text-sm text-zinc-300">{item.message}</p>
                         {item.meta && <p className="mt-1 text-xs text-zinc-500">{item.meta}</p>}
