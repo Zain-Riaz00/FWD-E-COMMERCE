@@ -49,9 +49,22 @@ export default function OrderConfirmationPage() {
 
     const createOrder = async () => {
       try {
-        const userId = localStorage.getItem('userId') || undefined
-        const userEmail = localStorage.getItem('userEmail') || 'guest@example.com'
-        const userName = localStorage.getItem('userName') || state.address.fullName
+        // Get user from localStorage (stored as JSON object under 'user' key)
+        let userId: string | undefined
+        let userEmail = 'guest@example.com'
+        let userName = state.address.fullName
+        
+        const userJson = localStorage.getItem('user')
+        if (userJson) {
+          try {
+            const user = JSON.parse(userJson)
+            userId = user._id
+            userEmail = user.email || userEmail
+            userName = user.name || userName
+          } catch (e) {
+            console.error('Failed to parse user data:', e)
+          }
+        }
         
         const orderData = {
           userId,
