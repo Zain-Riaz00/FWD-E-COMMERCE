@@ -6,7 +6,8 @@ import { orderAPI } from '@/services/api'
 
 interface OrderItem {
   productId: string
-  name: string
+  productName: string
+  name?: string
   quantity: number
   price: number
   imageUrl?: string
@@ -28,11 +29,12 @@ interface Order {
   shippingAddress: {
     fullName: string
     phone: string
-    street: string
+    address: string
+    street?: string
     city: string
     state: string
     zipCode: string
-    country: string
+    country?: string
   }
   trackingNumber?: string
   createdAt: string
@@ -275,12 +277,12 @@ export default function OrderTrackingPage() {
                   {item.imageUrl && (
                     <img
                       src={item.imageUrl}
-                      alt={item.name}
+                      alt={item.productName || item.name}
                       className="w-20 h-20 object-cover rounded-lg"
                     />
                   )}
                   <div className="flex-1">
-                    <h3 className="font-bold text-cyan-50">{item.name}</h3>
+                    <h3 className="font-bold text-cyan-50">{item.productName || item.name}</h3>
                     <p className="text-cyan-300/70">Qty: {item.quantity}</p>
                     <p className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400">
                       ${(item.price * item.quantity).toFixed(2)}
@@ -306,11 +308,11 @@ export default function OrderTrackingPage() {
             <div className="space-y-2 text-cyan-200">
               <p className="font-semibold">{order.shippingAddress.fullName}</p>
               <p>{order.shippingAddress.phone}</p>
-              <p>{order.shippingAddress.street}</p>
+              <p>{order.shippingAddress.address || order.shippingAddress.street}</p>
               <p>
                 {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.zipCode}
               </p>
-              <p>{order.shippingAddress.country}</p>
+              {order.shippingAddress.country && <p>{order.shippingAddress.country}</p>}
             </div>
           </div>
 

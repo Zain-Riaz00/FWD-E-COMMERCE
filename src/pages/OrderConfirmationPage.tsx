@@ -48,16 +48,17 @@ export default function OrderConfirmationPage() {
     const createOrder = async () => {
       try {
         const userId = localStorage.getItem('userId') || undefined
-        const userEmail = localStorage.getItem('userEmail') || undefined
+        const userEmail = localStorage.getItem('userEmail') || 'guest@example.com'
         const userName = localStorage.getItem('userName') || state.address.fullName
         
         const orderData = {
           userId,
-          userEmail,
-          userName,
+          customerEmail: userEmail,
+          customerName: userName,
+          customerPhone: state.address.phone,
           items: [{
             productId: state.product._id || state.product.id,
-            name: state.product.name,
+            productName: state.product.name,
             quantity: state.quantity,
             price: state.product.price,
             imageUrl: state.product.imageUrl
@@ -66,15 +67,15 @@ export default function OrderConfirmationPage() {
           shippingAddress: {
             fullName: state.address.fullName,
             phone: state.address.phone,
-            street: state.address.address,
+            address: state.address.address,
             city: state.address.city,
             state: state.address.state,
-            zipCode: state.address.zipCode,
-            country: 'USA'
+            zipCode: state.address.zipCode
           },
           paymentMethod: 'card'
         }
         
+        console.log('[Order] Creating order with data:', orderData)
         const result = await orderAPI.create(orderData)
         
         if (result && result._id) {

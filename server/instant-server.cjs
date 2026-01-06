@@ -491,7 +491,28 @@ app.get('/api/orders', async (req, res) => {
   }
 });
 
-// GET - Fetch single order
+// GET - Fetch order by order number (must be before :id route)
+app.get('/api/orders/track/:orderNumber', async (req, res) => {
+  try {
+    // Try to find by orderNumber first, then by _id if it's a valid ObjectId
+    let order = await Order.findOne({ orderNumber: req.params.orderNumber });
+    if (!order) {
+      // Check if it's a valid MongoDB ObjectId
+      if (req.params.orderNumber.match(/^[0-9a-fA-F]{24}$/)) {
+        order = await Order.findById(req.params.orderNumber);
+      }
+    }
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    res.json(order);
+  } catch (error) {
+    console.error('[GET] Error tracking order:', error);
+    res.status(500).json({ error: 'Failed to track order' });
+  }
+});
+
+// GET - Fetch single order by ID
 app.get('/api/orders/:id', async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
@@ -502,20 +523,6 @@ app.get('/api/orders/:id', async (req, res) => {
   } catch (error) {
     console.error('[GET] Error fetching order:', error);
     res.status(500).json({ error: 'Failed to fetch order' });
-  }
-});
-
-// GET - Fetch order by order number
-app.get('/api/orders/track/:orderNumber', async (req, res) => {
-  try {
-    const order = await Order.findOne({ orderNumber: req.params.orderNumber });
-    if (!order) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-    res.json(order);
-  } catch (error) {
-    console.error('[GET] Error tracking order:', error);
-    res.status(500).json({ error: 'Failed to track order' });
   }
 });
 
