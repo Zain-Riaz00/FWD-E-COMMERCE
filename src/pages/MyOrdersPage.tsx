@@ -71,8 +71,21 @@ export default function MyOrdersPage() {
   const [error, setError] = useState('')
 
   const fetchOrders = useCallback(async () => {
-    const userId = localStorage.getItem('userId')
-    const userEmail = localStorage.getItem('userEmail')
+    // Get user from localStorage (stored as JSON object under 'user' key)
+    const userJson = localStorage.getItem('user')
+    let userId = localStorage.getItem('userId')
+    let userEmail = localStorage.getItem('userEmail')
+    
+    // Parse the user object if it exists
+    if (userJson) {
+      try {
+        const user = JSON.parse(userJson)
+        userId = user._id || userId
+        userEmail = user.email || userEmail
+      } catch (e) {
+        console.error('Failed to parse user data:', e)
+      }
+    }
     
     if (!userId && !userEmail) {
       setError('Please login to view your orders')

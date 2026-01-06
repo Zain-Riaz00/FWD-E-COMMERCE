@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { Search, ShoppingCart, User, Menu, Shield, LogOut, Bell, Heart, Package } from 'lucide-react'
+import { Search, ShoppingCart, User, Menu, Shield, LogOut, Bell, Package } from 'lucide-react'
 import { useCart } from '@/context/CartContext'
-import { useWishlist } from '@/context/WishlistContext'
 import { useAdmin } from '@/contexts/AdminContext'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import { GLOBAL_NOTIFICATION_KEY, loadGlobalNotifications } from '@/utils/notificationFeed'
@@ -18,7 +17,6 @@ export default function Navbar({ onMenuToggle }: { onMenuToggle?: () => void }) 
   const location = useLocation()
   const { totalQuantity } = useCart()
   const { isAdmin, logout } = useAdmin()
-  const { items: wishlistItems } = useWishlist()
   const [allProducts, setAllProducts] = useState<{ name: string; description?: string; category?: string }[]>([])
   const [notificationCount, setNotificationCount] = useState(0)
   const userStatus = getUserStatus()
@@ -239,19 +237,6 @@ export default function Navbar({ onMenuToggle }: { onMenuToggle?: () => void }) 
             {notificationCount > 0 && (
               <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-pink-500 px-1 text-[10px] font-semibold text-white shadow-sm">
                 {notificationCount}
-              </span>
-            )}
-          </Link>
-          <Link 
-            to="/wishlist" 
-            onClick={(e) => handleNavClick(e, '/wishlist')}
-            aria-label="Wishlist" 
-            className="group relative inline-flex items-center rounded-lg p-2 text-cyan-200 hover:bg-white/5 hover:text-pink-400"
-          >
-            <Heart className="h-5 w-5" />
-            {wishlistItems.length > 0 && (
-              <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-pink-500 px-1 text-[10px] font-semibold text-white shadow-sm">
-                {wishlistItems.length}
               </span>
             )}
           </Link>

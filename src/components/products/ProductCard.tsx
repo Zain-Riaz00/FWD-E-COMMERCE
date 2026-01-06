@@ -2,8 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import type { Product } from '@/types/product'
 import { StarRating } from '@/components/ui/StarRating'
 import { useAdmin } from '@/contexts/AdminContext'
-import { useWishlist } from '@/context/WishlistContext'
-import { Edit2, Trash2, Plus, Minus, Heart } from 'lucide-react'
+import { Edit2, Trash2, Plus, Minus } from 'lucide-react'
 import { useState } from 'react'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 
@@ -17,23 +16,11 @@ type Props = {
 export default function ProductCard({ product, onEdit, onDelete, onUpdateQuantity }: Props) {
   const navigate = useNavigate()
   const { isAdmin } = useAdmin()
-  const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist()
   const [quantity, setQuantity] = useState(10) // Mock quantity
   const [confirmDelete, setConfirmDelete] = useState<{ show: boolean; productId: string | null }>({ 
     show: false, 
     productId: null 
   })
-  
-  const inWishlist = isInWishlist(product.id)
-
-  const handleWishlistToggle = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (inWishlist) {
-      removeFromWishlist(product.id)
-    } else {
-      addToWishlist(product)
-    }
-  }
 
   const handleQuantityChange = (change: number) => {
     const newQty = Math.max(0, quantity + change)
@@ -60,19 +47,6 @@ export default function ProductCard({ product, onEdit, onDelete, onUpdateQuantit
           '0 0 0 1px rgba(0,255,255,0.08), inset 0 0 0 1px rgba(255,255,255,0.02)',
       }}
     >
-      {/* Wishlist Button - Top Left Corner */}
-      <button
-        onClick={handleWishlistToggle}
-        className={`absolute top-2 left-2 z-10 rounded-full p-2 backdrop-blur-md shadow-lg transition-all ${
-          inWishlist 
-            ? 'bg-pink-500/30 ring-1 ring-pink-400/50 text-pink-400' 
-            : 'bg-black/30 ring-1 ring-white/20 text-white/70 hover:text-pink-400 hover:bg-pink-500/20'
-        }`}
-        title={inWishlist ? 'Remove from Wishlist' : 'Add to Wishlist'}
-      >
-        <Heart className={`w-4 h-4 ${inWishlist ? 'fill-current' : ''}`} />
-      </button>
-
       {/* Admin Controls - Top Right Corner */}
       {isAdmin && (
         <div className="absolute top-2 right-2 z-10 flex gap-1">

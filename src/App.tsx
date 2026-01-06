@@ -23,7 +23,6 @@ import AboutPage from '@/pages/AboutPage'
 import HelpCenterPage from '@/pages/HelpCenterPage'
 import TermsPage from '@/pages/TermsPage'
 import ManageAdminsPage from '@/pages/ManageAdminsPage'
-import WishlistPage from '@/pages/WishlistPage'
 import FeedbackPage from '@/pages/FeedbackPage'
 import InventoryAlertsPage from '@/pages/InventoryAlertsPage'
 import OrdersPage from '@/pages/OrdersPage'
@@ -32,7 +31,6 @@ import AdminLogsPage from '@/pages/AdminLogsPage'
 import AnimatedBackground from '@/components/ui/AnimatedBackground'
 import { AdminProvider } from '@/contexts/AdminContext'
 import { ThemeProvider } from '@/contexts/ThemeContext'
-import { WishlistProvider } from '@/context/WishlistContext'
 
 // Page transition animation variants - simple opacity fade
 const pageVariants = {
@@ -85,7 +83,6 @@ function RoutesWithTransition({ onMenuToggle }: { onMenuToggle: () => void }) {
             <Route path="/help" element={<HelpCenterPage />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/admin" element={<ManageAdminsPage />} />
-            <Route path="/wishlist" element={<WishlistPage />} />
             <Route path="/feedback" element={<FeedbackPage />} />
             <Route path="/inventory-alerts" element={<InventoryAlertsPage />} />
             <Route path="/orders" element={<OrdersPage />} />
@@ -105,11 +102,9 @@ function App() {
     <BrowserRouter>
       <ThemeProvider>
         <AdminProvider>
-          <WishlistProvider>
-            <AnimatedBackground />
-            <NavigationMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
-            <RoutesWithTransition onMenuToggle={() => setIsMenuOpen(!isMenuOpen)} />
-          </WishlistProvider>
+          <AnimatedBackground />
+          <NavigationMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
+          <RoutesWithTransition onMenuToggle={() => setIsMenuOpen(!isMenuOpen)} />
         </AdminProvider>
       </ThemeProvider>
     </BrowserRouter>
