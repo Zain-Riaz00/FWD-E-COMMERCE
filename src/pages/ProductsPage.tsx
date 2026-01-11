@@ -2,12 +2,13 @@ import ProductCard from '@/components/products/ProductCard'
 import { ColorVariantModal } from '@/components/products/ColorVariantModal'
 import EditProductModal from '@/components/admin/EditProductModal'
 import { CategoryManagementModal } from '@/components/admin/CategoryManagementModal'
+import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import type { Product, Category } from '@/types/product'
 import { useEffect, useRef, useState, useMemo } from 'react'
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Plus, Folder, Filter, Grid, List, Eye } from 'lucide-react'
+import { ArrowLeft, Plus, Folder, Filter, Grid, List, Eye, Edit2, Trash2 } from 'lucide-react'
 import { useAdmin } from '@/contexts/AdminContext'
 import { motion } from 'framer-motion'
 import { getProductPlaceholder } from '@/utils/placeholderImages'
@@ -27,10 +28,29 @@ export default function ProductsPage() {
   const [selectedChildProduct, setSelectedChildProduct] = useState<Product | null>(null)
   const [isColorModalOpen, setIsColorModalOpen] = useState(false)
   const [childProducts, setChildProducts] = useState<Product[]>([])
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null)
+  const [confirmDeleteCategory, setConfirmDeleteCategory] = useState<{ show: boolean; categoryId: string | null }>({
+    show: false,
+    categoryId: null
+  })
   const { isAdmin } = useAdmin()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const searchQuery = searchParams.get('q') || ''
+  
+  // Get admin email from localStorage
+  const getAdminEmail = () => {
+    try {
+      const user = localStorage.getItem('user')
+      if (user) {
+        const userData = JSON.parse(user)
+        return userData.email
+      }
+    } catch (e) {
+      console.error('Error getting admin email:', e)
+    }
+    return undefined
+  }
 
   // Group products by category
   const groupedProducts = useMemo(() => {
@@ -45,12 +65,11 @@ export default function ProductsPage() {
       })
     }
     
-    // Products grouped by categories
+    // Show ALL categories, even if they have no products
     categories.forEach(cat => {
       const catProducts = products.filter(p => p.category === cat.id)
-      if (catProducts.length > 0) {
-        groups.push({ category: cat, products: catProducts })
-      }
+      // Show category even if it has no products
+      groups.push({ category: cat, products: catProducts })
     })
     
     return groups
@@ -88,31 +107,51 @@ export default function ProductsPage() {
     setIsModalOpen(false)
     
     try {
-      if (updatedProduct._id) {
+      // Check if this is an existing product (has an id)
+      if (updatedProduct.id) {
         // Optimistic update - update UI immediately
         setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p))
-        // Then update MongoDB in background - ensure it stays as parent
-        await productAPI.update(updatedProduct._id, {
+        setChildProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p))
+        
+        // Update in database (works for both local and server products)
+        await productAPI.update(updatedProduct.id, {
           ...updatedProduct,
-          productType: 'parent',
-          parentId: undefined, // Parents have no parent
-        })
+          productType: updatedProduct.productType || 'parent',
+          parentId: updatedProduct.parentId,
+        }, getAdminEmail())
+        
+        console.log('[ProductsPage] Product updated successfully')
       } else {
-        // For new products, show a loading state briefly
+        // For new products, create them as CHILD products (to appear in All Products view)
         const tempId = 'temp-' + crypto.randomUUID()
         const tempProduct = { ...updatedProduct, id: tempId }
-        setProducts(prev => [...prev, tempProduct])
         
-        // Create in MongoDB - mark as parent
+        // Add to childProducts array for immediate display
+        setChildProducts(prev => [...prev, tempProduct])
+        
+        // Generate unique ID for new product
+        const productId = `admin-product-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        
+        // Create in MongoDB - mark as CHILD (not parent)
         const created = await productAPI.create({
           ...updatedProduct,
-          productType: 'parent',
-          parentId: undefined, // Parents have no parent
-        })
+          id: productId, // Ensure unique ID
+          productType: 'child', // Mark as child so it appears in All Products view
+          parentId: null, // Child products shown in All Products have no parent
+          imageUrl: updatedProduct.imageUrl || '/products/default.png',
+          description: updatedProduct.description || 'No description provided',
+        }, getAdminEmail())
         
-        // Replace temp with real product
+        console.log('[ProductsPage] Product creation response:', created)
+        
+        // Replace temp with real product in childProducts ONLY
         if (created) {
-          setProducts(prev => prev.map(p => p.id === tempId ? created : p))
+          setChildProducts(prev => prev.map(p => p.id === tempId ? created : p))
+          console.log('[ProductsPage] New product created:', created.name, 'with ID:', created.id)
+        } else {
+          // If creation failed, reload to sync with DB
+          console.log('[ProductsPage] Product creation failed, reloading...')
+          loadProducts()
         }
       }
     } catch (error) {
@@ -123,12 +162,13 @@ export default function ProductsPage() {
   }
 
   const handleDeleteProduct = async (productId: string) => {
-    // Optimistic delete - remove from UI immediately
+    // Optimistic delete - remove from BOTH arrays immediately
     setProducts(prev => prev.filter(p => p.id !== productId))
+    setChildProducts(prev => prev.filter(p => p.id !== productId))
     
     try {
       // Delete from MongoDB in background
-      await productAPI.delete(productId)
+      await productAPI.delete(productId, getAdminEmail())
     } catch (error) {
       console.error('Error deleting product:', error)
       // Reload to sync with database
@@ -136,9 +176,20 @@ export default function ProductsPage() {
     }
   }
 
+  const handleDeleteCategory = async (categoryId: string) => {
+    try {
+      await categoryAPI.delete(categoryId)
+      setCategories(prev => prev.filter(c => c.id !== categoryId && c._id !== categoryId))
+      setConfirmDeleteCategory({ show: false, categoryId: null })
+    } catch (error) {
+      console.error('Error deleting category:', error)
+      loadCategories()
+    }
+  }
+
   const handleAddProduct = () => {
     const newProduct: Product = {
-      id: String(Date.now()),
+      id: '', // Empty id indicates this is a new product to be created
       name: 'New Product',
       price: 99.99,
       description: 'Add description here',
@@ -149,28 +200,43 @@ export default function ProductsPage() {
     setIsModalOpen(true)
   }
 
-  // Load products from MongoDB on mount
+  // Load products from MongoDB on mount - with instant local fallback
   const loadProducts = async () => {
-    setLoading(true)
-    const data = await productAPI.getAll()
-    console.log('Loaded all products:', data.length, data)
-    // Filter to show ONLY parent products:
-    // CRITICAL: If parentId exists, it's definitely a child/grandchild - EXCLUDE IT
-    // Then check: productType must be 'parent' OR undefined (legacy products without type)
-    const parentProducts = data.filter(p => {
-      // First rule: If it has a parentId, it's NOT a parent - exclude
-      if (p.parentId) return false
+    // INSTANT: Get local products immediately to prevent loading state
+    const localData = productAPI.getLocalProducts()
+    if (products.length === 0 && localData.length > 0) {
+      const localParents = localData.filter(p => !p.parentId && (!p.productType || p.productType === 'parent'))
+      const localChildren = localData.filter(p => p.productType === 'child')
+      setProducts(localParents)
+      setChildProducts(localChildren)
+      setLoading(false)
+      console.log('[ProductsPage] Loaded instant local products:', localParents.length, 'parents,', localChildren.length, 'children')
+    }
+
+    // Then get merged data (local + admin-added) from server
+    try {
+      const data = await productAPI.getAll()
+      console.log('[ProductsPage] Got merged products from API:', data.length)
       
-      // Second rule: If no parentId, include if it's marked as parent OR has no type (legacy)
-      return !p.productType || p.productType === 'parent'
-    })
-    // Also get child products for "All Products" view
-    const children = data.filter(p => p.productType === 'child')
-    console.log('Filtered parent products:', parentProducts.length, parentProducts)
-    console.log('Filtered child products:', children.length, children)
-    setProducts(parentProducts)
-    setChildProducts(children)
-    setLoading(false)
+      // Filter to show ONLY parent products:
+      const parentProducts = data.filter(p => {
+        if (p.parentId) return false
+        return !p.productType || p.productType === 'parent'
+      })
+      
+      // Also get child products for "All Products" view
+      const children = data.filter(p => p.productType === 'child')
+      console.log('[ProductsPage] Filtered - parents:', parentProducts.length, ', children:', children.length)
+      
+      // Always update with merged data (local + admin-added)
+      setProducts(parentProducts)
+      setChildProducts(children)
+      console.log('[ProductsPage] Updated with merged data (local + admin-added)')
+    } catch (error) {
+      console.log('[ProductsPage] Error fetching, using local products')
+    } finally {
+      setLoading(false)
+    }
   }
 
   // Load products on component mount and refresh
@@ -272,7 +338,7 @@ export default function ProductsPage() {
           </div>
           
           <p className="text-sm text-zinc-400">
-            {viewMode === 'all' ? products.length : filteredProducts.length} items
+            {viewMode === 'all' ? childProducts.length : filteredProducts.length} items
           </p>
           {isAdmin && (
             <>
@@ -333,66 +399,105 @@ export default function ProductsPage() {
         {/* Products grid */}
         <div className={selectedCategory ? '' : 'lg:col-span-5'}>
           {viewMode === 'grouped' ? (
-            /* Grouped by Category View */
-            <div className="space-y-12">
-              {groupedProducts.length === 0 ? (
+            /* Category Cards Grid - Clickable cards that navigate to 3D gallery */
+            <div className="space-y-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold text-white">Browse by Category</h2>
+                <span className="text-sm text-cyan-400">{categories.length} {categories.length === 1 ? 'category' : 'categories'}</span>
+              </div>
+              
+              {categories.length === 0 ? (
                 <div className="text-center py-12 text-gray-400">
-                  <p>No products available. Add some products to get started!</p>
+                  <p>No categories available. Add categories to get started!</p>
                 </div>
               ) : (
-                groupedProducts.map((group, idx) => (
-                  <div key={group.category?.id || 'uncategorized'} className="space-y-4">
-                    {/* Category Header */}
-                    <div className="flex items-center gap-3 pb-3 border-b border-cyan-500/20">
-                      {group.category ? (
-                        <>
-                          <div
-                            className="w-8 h-8 rounded-lg flex-shrink-0"
-                            style={{ backgroundColor: group.category.color }}
-                          />
-                          <div>
-                            <h2 className="text-2xl font-bold text-white">
-                              {group.category.name}
-                            </h2>
-                            {group.category.description && (
-                              <p className="text-sm text-gray-400">
-                                {group.category.description}
-                              </p>
-                            )}
-                          </div>
-                        </>
-                      ) : (
-                        <div>
-                          <h2 className="text-2xl font-bold text-gray-300">
-                            Uncategorized
-                          </h2>
-                          <p className="text-sm text-gray-400">
-                            Products without a category
-                          </p>
+                <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+                  {categories.map((category, index) => {
+                    // Different hover colors for each category
+                    const categoryColors = [
+                      { border: 'hover:border-cyan-400/30', shadow: 'hover:shadow-cyan-500/10', eye: 'text-cyan-400' },
+                      { border: 'hover:border-purple-400/30', shadow: 'hover:shadow-purple-500/10', eye: 'text-purple-400' },
+                      { border: 'hover:border-pink-400/30', shadow: 'hover:shadow-pink-500/10', eye: 'text-pink-400' },
+                      { border: 'hover:border-emerald-400/30', shadow: 'hover:shadow-emerald-500/10', eye: 'text-emerald-400' },
+                      { border: 'hover:border-orange-400/30', shadow: 'hover:shadow-orange-500/10', eye: 'text-orange-400' },
+                      { border: 'hover:border-blue-400/30', shadow: 'hover:shadow-blue-500/10', eye: 'text-blue-400' },
+                      { border: 'hover:border-rose-400/30', shadow: 'hover:shadow-rose-500/10', eye: 'text-rose-400' },
+                      { border: 'hover:border-violet-400/30', shadow: 'hover:shadow-violet-500/10', eye: 'text-violet-400' },
+                    ]
+                    const colors = categoryColors[index % categoryColors.length]
+                    
+                    return (
+                    <motion.div
+                      key={category.id}
+                      whileHover={{ y: -4 }}
+                      whileTap={{ scale: 0.98 }}
+                      className={`group relative overflow-hidden rounded-xl border border-cyan-400/10 bg-gradient-to-br from-[#0a0e1a]/90 to-[#020304]/90 backdrop-blur-xl shadow-lg shadow-cyan-500/5 ${colors.border} hover:shadow-xl ${colors.shadow} transition-all duration-300`}
+                    >
+                      {/* Admin Edit/Delete Buttons */}
+                      {isAdmin && (
+                        <div className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setEditingCategory(category)
+                              setIsCategoryModalOpen(true)
+                            }}
+                            className="p-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/30 backdrop-blur-sm transition-all"
+                            title="Edit Category"
+                          >
+                            <Edit2 className="w-3.5 h-3.5 text-blue-400" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setConfirmDeleteCategory({ show: true, categoryId: category.id || category._id || '' })
+                            }}
+                            className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-400/30 backdrop-blur-sm transition-all"
+                            title="Delete Category"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                          </button>
                         </div>
                       )}
-                      <span className="ml-auto text-sm text-cyan-400 font-medium">
-                        {group.products.length} {group.products.length === 1 ? 'item' : 'items'}
-                      </span>
-                    </div>
-
-                    {/* Products Grid for this Category */}
-                    <div 
-                      ref={idx === 0 ? gridRef : null}
-                      className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4"
-                    >
-                      {group.products.map((p) => (
-                        <div key={p.id} className="product-card will-change-transform">
-                          <ProductCard
-                            product={p}
-                            onEdit={handleEditProduct}
-                            onDelete={handleDeleteProduct}
-                          />
+                      
+                      {/* Category Image - Clickable - Reduced height */}
+                      <div onClick={() => navigate(`/products/gallery/${category.id}`)} className="cursor-pointer">
+                        {category.imageUrl && (
+                          <div className="relative h-40 overflow-hidden">
+                            <img
+                              src={category.imageUrl}
+                              alt={category.name}
+                              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-[#0a0e1a] via-transparent to-transparent opacity-60" />
+                          </div>
+                        )}
+                        
+                        {/* Category Info */}
+                        <div className="p-3">
+                          <h3 className="text-base font-bold text-cyan-50 mb-1">
+                            {category.name}
+                          </h3>
+                          {category.description && (
+                            <p className="text-xs text-cyan-300/70 line-clamp-1 mb-2">
+                              {category.description}
+                            </p>
+                          )}
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-cyan-400">
+                              {childProducts.filter(p => p.category === category.id).length} items
+                            </span>
+                            <Eye className={`w-4 h-4 ${colors.eye} opacity-0 group-hover:opacity-100 transition-opacity`} />
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                ))
+                      </div>
+                      
+                      {/* Glassmorphic Border Glow */}
+                      <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-inset ring-white/5" />
+                    </motion.div>
+                  )
+                  })}
+                </div>
               )}
             </div>
           ) : (
@@ -410,6 +515,8 @@ export default function ProductsPage() {
                           setSelectedChildProduct(p)
                           setIsColorModalOpen(true)
                         }}
+                        onEdit={handleEditProduct}
+                        onDelete={handleDeleteProduct}
                       />
                     ))}
                   </div>
@@ -457,9 +564,29 @@ export default function ProductsPage() {
       {/* Category Management Modal */}
       <CategoryManagementModal
         isOpen={isCategoryModalOpen}
-        onClose={() => setIsCategoryModalOpen(false)}
-        initialCategories={categories}
-        onSaveCategories={setCategories}
+        onClose={() => {
+          setIsCategoryModalOpen(false)
+          setEditingCategory(null)
+        }}
+        initialCategories={editingCategory ? [editingCategory] : categories}
+        onSaveCategories={(updatedCategories) => {
+          setCategories(updatedCategories)
+          setEditingCategory(null)
+          loadCategories()
+        }}
+      />
+
+      {/* Confirm Delete Category Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDeleteCategory.show}
+        onClose={() => setConfirmDeleteCategory({ show: false, categoryId: null })}
+        onConfirm={() => {
+          if (confirmDeleteCategory.categoryId) {
+            handleDeleteCategory(confirmDeleteCategory.categoryId)
+          }
+        }}
+        title="Delete Category"
+        message="Are you sure you want to delete this category? This action cannot be undone."
       />
 
       {/* Color Variant Modal for child products */}
@@ -481,14 +608,41 @@ export default function ProductsPage() {
 }
 
 // Child Product Card - like homepage, shows color variants on click
-function ChildProductCard({ product, onClick }: { product: Product; onClick: () => void }) {
+function ChildProductCard({ product, onClick, onEdit, onDelete }: { product: Product; onClick: () => void; onEdit?: (product: Product) => void; onDelete?: (productId: string) => void }) {
+  const { isAdmin } = useAdmin()
+  
+  // Calculate real-time average rating from reviews
+  const calculateAverageRating = () => {
+    if (!product.reviews || product.reviews.length === 0) return 0
+    const totalRating = product.reviews.reduce((sum, review) => sum + review.rating, 0)
+    return totalRating / product.reviews.length
+  }
+  
+  const averageRating = calculateAverageRating()
+  const reviewCount = product.reviews?.length || 0
+  
+  // Generate different hover colors based on product ID
+  const hoverColors = [
+    { border: 'group-hover:border-cyan-400/30', shadow: 'group-hover:shadow-cyan-500/10', badge: 'from-cyan-500/20 to-blue-500/20 border-cyan-400/30 shadow-cyan-500/20', badgeText: 'text-cyan-300' },
+    { border: 'group-hover:border-purple-400/30', shadow: 'group-hover:shadow-purple-500/10', badge: 'from-purple-500/20 to-pink-500/20 border-purple-400/30 shadow-purple-500/20', badgeText: 'text-purple-300' },
+    { border: 'group-hover:border-pink-400/30', shadow: 'group-hover:shadow-pink-500/10', badge: 'from-pink-500/20 to-rose-500/20 border-pink-400/30 shadow-pink-500/20', badgeText: 'text-pink-300' },
+    { border: 'group-hover:border-emerald-400/30', shadow: 'group-hover:shadow-emerald-500/10', badge: 'from-emerald-500/20 to-teal-500/20 border-emerald-400/30 shadow-emerald-500/20', badgeText: 'text-emerald-300' },
+    { border: 'group-hover:border-orange-400/30', shadow: 'group-hover:shadow-orange-500/10', badge: 'from-orange-500/20 to-amber-500/20 border-orange-400/30 shadow-orange-500/20', badgeText: 'text-orange-300' },
+    { border: 'group-hover:border-blue-400/30', shadow: 'group-hover:shadow-blue-500/10', badge: 'from-blue-500/20 to-indigo-500/20 border-blue-400/30 shadow-blue-500/20', badgeText: 'text-blue-300' },
+    { border: 'group-hover:border-rose-400/30', shadow: 'group-hover:shadow-rose-500/10', badge: 'from-rose-500/20 to-red-500/20 border-rose-400/30 shadow-rose-500/20', badgeText: 'text-rose-300' },
+    { border: 'group-hover:border-violet-400/30', shadow: 'group-hover:shadow-violet-500/10', badge: 'from-violet-500/20 to-purple-500/20 border-violet-400/30 shadow-violet-500/20', badgeText: 'text-violet-300' },
+  ]
+  
+  const colorIndex = product.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % hoverColors.length
+  const colors = hoverColors[colorIndex]
+
   return (
     <div
       className="group relative cursor-pointer hover:-translate-y-1 transition-transform duration-150"
       onClick={onClick}
     >
       {/* Card Container - Glassmorphic */}
-      <div className="relative overflow-hidden rounded-xl border border-cyan-400/10 bg-gradient-to-br from-[#0a0e1a]/90 to-[#020304]/90 backdrop-blur-xl shadow-lg shadow-cyan-500/5 group-hover:border-cyan-400/30 group-hover:shadow-xl group-hover:shadow-cyan-500/10">
+      <div className={`relative overflow-hidden rounded-xl border border-cyan-400/10 bg-gradient-to-br from-[#0a0e1a]/90 to-[#020304]/90 backdrop-blur-xl shadow-lg shadow-cyan-500/5 ${colors.border} group-hover:shadow-xl ${colors.shadow}`}>
         
         {/* Image Container */}
         <div className="relative aspect-square overflow-hidden bg-gradient-to-br from-zinc-900/50 to-zinc-950/50">
@@ -502,10 +656,36 @@ function ChildProductCard({ product, onClick }: { product: Product; onClick: () 
           {/* Gradient Overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-[#0a0e1a] via-transparent to-transparent opacity-60" />
           
+          {/* Admin Controls - Top Left Corner */}
+          {isAdmin && (
+            <div className="absolute top-2 left-2 z-10 flex gap-1">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onEdit?.(product)
+                }}
+                className="rounded-lg bg-white/40 dark:bg-blue-500/30 border border-white/10 dark:border-blue-400/40 p-1.5 backdrop-blur-md shadow-lg hover:bg-white/50 dark:hover:bg-blue-500/40"
+                title="Edit Product"
+              >
+                <Edit2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-300" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onDelete?.(product.id)
+                }}
+                className="rounded-lg bg-white/40 dark:bg-red-500/30 border border-white/10 dark:border-red-400/40 p-1.5 backdrop-blur-md shadow-lg hover:bg-white/50 dark:hover:bg-red-500/40"
+                title="Delete Product"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-600 dark:text-red-300" />
+              </button>
+            </div>
+          )}
+          
           {/* 3D View Badge */}
-          <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-gradient-to-r from-cyan-500/20 to-blue-500/20 px-2 py-1 backdrop-blur-xl border border-cyan-400/30 shadow-lg shadow-cyan-500/20">
-            <Eye className="h-2.5 w-2.5 text-cyan-300" />
-            <span className="text-[10px] font-bold text-cyan-100">3D</span>
+          <div className={`absolute top-2 right-2 flex items-center gap-1 rounded-full bg-gradient-to-r ${colors.badge} px-2 py-1 backdrop-blur-xl border shadow-lg`}>
+            <Eye className={`h-2.5 w-2.5 ${colors.badgeText}`} />
+            <span className={`text-[10px] font-bold ${colors.badgeText}`}>3D</span>
           </div>
         </div>
 
@@ -515,32 +695,30 @@ function ChildProductCard({ product, onClick }: { product: Product; onClick: () 
             {product.name}
           </h3>
           
-          {/* Rating */}
-          {product.rating > 0 && (
-            <div className="mb-2 flex items-center gap-1">
-              {[...Array(5)].map((_, i) => (
-                <svg
-                  key={i}
-                  className={`h-2.5 w-2.5 ${
-                    i < Math.floor(product.rating)
-                      ? 'text-yellow-400 fill-yellow-400'
-                      : 'text-gray-600 fill-gray-600'
-                  }`}
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                >
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                </svg>
-              ))}
-              <span className="ml-0.5 text-[10px] text-cyan-300/70">
-                ({product.reviewCount || 0})
-              </span>
-            </div>
-          )}
+          {/* Rating - Always show, fill based on actual reviews */}
+          <div className="mb-2 flex items-center gap-1">
+            {[...Array(5)].map((_, i) => (
+              <svg
+                key={i}
+                className={`h-2.5 w-2.5 ${
+                  i < Math.floor(averageRating)
+                    ? 'text-yellow-400 fill-yellow-400'
+                    : 'text-gray-600 fill-gray-600'
+                }`}
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+              >
+                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+              </svg>
+            ))}
+            <span className="ml-0.5 text-[10px] text-cyan-300/70">
+              ({reviewCount})
+            </span>
+          </div>
 
-          {/* View Hint */}
+          {/* Price */}
           <div className="text-center">
-            <span className="text-[10px] text-cyan-300/70">Click to view colors</span>
+            <span className="text-lg font-bold text-cyan-400">Rs {product.price.toFixed(2)}</span>
           </div>
         </div>
 

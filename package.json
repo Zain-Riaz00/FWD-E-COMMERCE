@@ -9,7 +9,7 @@
     "build:server": "tsc --project tsconfig.server.json",
     "lint": "eslint .",
     "preview": "vite preview",
-    "server": "node server/instant-server.cjs",
+    "server": "node server/app.cjs",
     "server:prod": "node server/dist/index.js",
     "dev:full": "concurrently \"npm run dev\" \"npm run server\"",
     "seed": "tsx server/seed.ts"

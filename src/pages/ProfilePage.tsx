@@ -6,6 +6,7 @@ import VerifiedBadge from '@/components/ui/VerifiedBadge'
 import { isGuestUser, clearAllAuthState } from '@/utils/guestUser'
 import GuestRestrictionModal from '@/components/ui/GuestRestrictionModal'
 import { useAdmin } from '@/contexts/AdminContext'
+import { siteSettingsAPI } from '@/services/api'
 
 export default function ProfilePage() {
   const navigate = useNavigate()
@@ -35,12 +36,30 @@ export default function ProfilePage() {
     confirmPassword: ''
   })
 
+  // Freeze settings
+  const [freezeMessage, setFreezeMessage] = useState('The website is currently under maintenance. Please check back later.')
+  const [freezeDuration, setFreezeDuration] = useState('')
+  const [isFrozen, setIsFrozen] = useState(false)
+  const [freezeLoading, setFreezeLoading] = useState(false)
+
   // Check if user is guest and redirect immediately
   useEffect(() => {
     if (isGuestUser()) {
       navigate('/')
     }
   }, [navigate])
+
+  // Load current freeze status
+  useEffect(() => {
+    const loadFreezeStatus = async () => {
+      const settings = await siteSettingsAPI.getSettings()
+      if (settings) {
+        setIsFrozen(settings.isFrozen)
+        setFreezeMessage(settings.freezeMessage || 'The website is currently under maintenance. Please check back later.')
+      }
+    }
+    loadFreezeStatus()
+  }, [])
 
   // Don't render anything for guest users
   if (isGuestUser()) {
@@ -90,6 +109,52 @@ export default function ProfilePage() {
     adminLogout()
     clearAllAuthState()
     navigate('/auth')
+  }
+
+  const handleFreezeWebsite = async () => {
+    if (freezeLoading) return
+    setFreezeLoading(true)
+    
+    try {
+      const userData = JSON.parse(localStorage.getItem('user') || '{}')
+      await siteSettingsAPI.updateFreeze({
+        isFrozen: true,
+        freezeMessage: freezeMessage || 'The website is currently under maintenance. Please check back later.',
+        freezeDuration: freezeDuration ? parseInt(freezeDuration) : undefined,
+        userId: userData._id || userData.id,
+        userName: userData.name,
+        userEmail: userData.email
+      })
+      setIsFrozen(true)
+      alert('Website has been frozen successfully!')
+    } catch (error) {
+      console.error('Failed to freeze website:', error)
+      alert('Failed to freeze website. Please try again.')
+    } finally {
+      setFreezeLoading(false)
+    }
+  }
+
+  const handleUnfreezeWebsite = async () => {
+    if (freezeLoading) return
+    setFreezeLoading(true)
+    
+    try {
+      const userData = JSON.parse(localStorage.getItem('user') || '{}')
+      await siteSettingsAPI.updateFreeze({
+        isFrozen: false,
+        userId: userData._id || userData.id,
+        userName: userData.name,
+        userEmail: userData.email
+      })
+      setIsFrozen(false)
+      alert('Website has been unfrozen successfully!')
+    } catch (error) {
+      console.error('Failed to unfreeze website:', error)
+      alert('Failed to unfreeze website. Please try again.')
+    } finally {
+      setFreezeLoading(false)
+    }
   }
 
   return (
@@ -535,10 +600,20 @@ export default function ProfilePage() {
                     <h3 className="text-lg font-semibold text-red-100 mb-4">Website Freeze Controls</h3>
                     
                     <div className="space-y-4">
+                      {/* Current Status */}
+                      {isFrozen && (
+                        <div className="p-4 bg-red-500/20 rounded-lg border border-red-400/30">
+                          <p className="text-red-200 font-semibold">⚠️ Website is currently FROZEN</p>
+                        </div>
+                      )}
+                      
                       <div>
                         <label className="block text-sm font-medium text-red-200/80 mb-2">Maintenance Message</label>
                         <textarea
-                          className="w-full px-4 py-3 bg-black/30 border border-red-400/20 rounded-xl text-red-100 placeholder-red-200/40 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                          value={freezeMessage}
+                          onChange={(e) => setFreezeMessage(e.target.value)}
+                          disabled={isFrozen}
+                          className="w-full px-4 py-3 bg-black/30 border border-red-400/20 rounded-xl text-red-100 placeholder-red-200/40 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all disabled:opacity-50"
                           placeholder="Enter message to display to users..."
                           rows={3}
                         />
@@ -546,7 +621,12 @@ export default function ProfilePage() {
 
                       <div>
                         <label className="block text-sm font-medium text-red-200/80 mb-2">Freeze Duration (optional)</label>
-                        <select className="w-full px-4 py-3 bg-black/30 border border-red-400/20 rounded-xl text-red-100 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all">
+                        <select 
+                          value={freezeDuration}
+                          onChange={(e) => setFreezeDuration(e.target.value)}
+                          disabled={isFrozen}
+                          className="w-full px-4 py-3 bg-black/30 border border-red-400/20 rounded-xl text-red-100 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all disabled:opacity-50"
+                        >
                           <option value="">Until manually unfrozen</option>
                           <option value="30">30 minutes</option>
                           <option value="60">1 hour</option>
@@ -558,11 +638,19 @@ export default function ProfilePage() {
                       </div>
 
                       <div className="flex gap-4 pt-4">
-                        <button className="flex-1 px-6 py-3 bg-red-500/20 text-red-300 rounded-xl font-semibold hover:bg-red-500/30 ring-1 ring-red-400/40 transition-all">
-                          Freeze Website
+                        <button 
+                          onClick={handleFreezeWebsite}
+                          disabled={isFrozen || freezeLoading}
+                          className="flex-1 px-6 py-3 bg-red-500/20 text-red-300 rounded-xl font-semibold hover:bg-red-500/30 ring-1 ring-red-400/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {freezeLoading ? 'Processing...' : 'Freeze Website'}
                         </button>
-                        <button className="flex-1 px-6 py-3 bg-green-500/20 text-green-300 rounded-xl font-semibold hover:bg-green-500/30 ring-1 ring-green-400/40 transition-all">
-                          Unfreeze Website
+                        <button 
+                          onClick={handleUnfreezeWebsite}
+                          disabled={!isFrozen || freezeLoading}
+                          className="flex-1 px-6 py-3 bg-green-500/20 text-green-300 rounded-xl font-semibold hover:bg-green-500/30 ring-1 ring-green-400/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {freezeLoading ? 'Processing...' : 'Unfreeze Website'}
                         </button>
                       </div>
                     </div>

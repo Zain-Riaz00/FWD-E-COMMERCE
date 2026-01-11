@@ -106,6 +106,7 @@ export default function NotificationPanel() {
   // Load notifications from API
   const loadNotifications = async () => {
     try {
+      setLoading(true)
       // Get user from localStorage (stored as JSON object under 'user' key)
       let userId: string | undefined
       const userJson = localStorage.getItem('user')
@@ -131,6 +132,7 @@ export default function NotificationPanel() {
       setFeed(transformed)
     } catch (error) {
       console.error('Failed to load notifications:', error)
+      setFeed([]) // Set empty array on error
     } finally {
       setLoading(false)
     }
@@ -347,14 +349,19 @@ export default function NotificationPanel() {
                   
                   const handleClick = async () => {
                     // Mark as read when clicked
-                    if (item.status === 'new' && item._id) {
-                      await notificationAPI.markAsRead(item._id)
-                      setFeed(prev => prev.map(n => 
-                        n._id === item._id ? { ...n, status: 'read' as const } : n
-                      ))
+                    if (item.status === 'new' && (item._id || item.id)) {
+                      try {
+                        const notificationId = item._id || item.id;
+                        await notificationAPI.markAsRead(notificationId);
+                        setFeed(prev => prev.map(n => 
+                          (n._id === notificationId || n.id === notificationId) ? { ...n, status: 'read' as const } : n
+                        ));
+                      } catch (error) {
+                        console.error('Failed to mark as read:', error);
+                      }
                     }
                     if (linkTo) {
-                      navigate(linkTo)
+                      navigate(linkTo);
                     }
                   }
                   

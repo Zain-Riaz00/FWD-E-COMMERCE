@@ -49,7 +49,7 @@ export default function ProductSection({
 
   return (
     <section 
-      className="container py-12 md:py-16"
+      className="container py-6 md:py-8"
     >
       {/* Section Header */}
       <div className="mb-8 md:mb-12">
@@ -68,15 +68,18 @@ export default function ProductSection({
         )}
       </div>
 
-      {/* Products Grid - No scroll animations */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-        {products.slice(0, 12).map((product) => (
-          <ProductCard 
-            key={product.id} 
-            product={product}
-            onClick={() => handleProductClick(product)}
-          />
-        ))}
+      {/* Products - Horizontal Scroll (Single Line) */}
+      <div className="relative -mx-4 px-4 md:-mx-6 md:px-6">
+        <div className="flex gap-4 overflow-x-auto pb-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          {products.slice(0, 12).map((product, index) => (
+            <div key={`${product._id || product.id}-${index}`} className="flex-none w-[160px] sm:w-[180px] md:w-[200px]">
+              <ProductCard 
+                product={product}
+                onClick={() => handleProductClick(product)}
+              />
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Color Variant Modal */}

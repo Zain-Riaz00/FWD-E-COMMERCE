@@ -11,7 +11,8 @@ import GalleryLoadingOverlay from '@/components/ui/GalleryLoadingOverlay'
 import EditProductModal from '@/components/admin/EditProductModal'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { Edit2, Plus, Trash2, Package, ChevronLeft, ChevronRight } from 'lucide-react'
-import { productAPI } from '@/services/api'
+import { productAPI, categoryAPI } from '@/services/api'
+import type { Category } from '@/types/product'
 
 // Helper to calculate average rating
 function getAverageRating(reviews: Review[]): number {
@@ -168,45 +169,88 @@ export default function ProductGallery3D() {
   const startVerticalAngle = useRef(0)
   const animationFrameRef = useRef<number | undefined>(undefined)
   const [parentProduct, setParentProduct] = useState<Product | null>(null)
+  const [category, setCategory] = useState<Category | null>(null)
+  const [isCategory, setIsCategory] = useState(false)
 
-  // Load product children (child products) from database based on parent ID
+  // Load product children (child products) from database based on parent ID OR category ID
   useEffect(() => {
     const loadProductChildren = async () => {
       try {
-        // Fetch all products from database
-        const allProducts = await productAPI.getAll()
-        console.log('3D Gallery - URL id:', id)
+        // Check if this is a category ID
+        const categories = await categoryAPI.getAll()
+        const foundCategory = categories.find(c => c.id === id || c._id === id)
         
-        // First, find the parent product to get its MongoDB _id
-        const parent = allProducts.find(p => p.id === id || p._id === id)
-        console.log('3D Gallery - Found parent:', parent)
+        if (foundCategory) {
+          console.log('[3D Gallery] Loading products for category:', foundCategory.name)
+          setCategory(foundCategory)
+          setIsCategory(true)
+          
+          // Load all products in this category
+          const allProducts = await productAPI.getAll()
+          const categoryProducts = allProducts.filter(p => 
+            p.category === foundCategory.id && p.productType === 'child'
+          )
+          setProducts(categoryProducts)
+          console.log('[3D Gallery] Loaded', categoryProducts.length, 'products for category')
+          return
+        }
+        
+        // Otherwise, treat as parent product ID
+        setIsCategory(false)
+        
+        // INSTANT: Get local products first for immediate display
+        const localProducts = productAPI.getLocalProducts()
+        
+        // Find parent product in local data first
+        let parent = localProducts.find(p => p.id === id || p._id === id)
+        
+        if (parent) {
+          setParentProduct(parent)
+          const parentDbId = parent._id || parent.id
+          const localChildren = localProducts.filter(p => 
+            (p.parentId === parentDbId || p.parentId === parent!.id) && p.productType === 'child'
+          )
+          if (localChildren.length > 0) {
+            setProducts(localChildren)
+            console.log('[3D Gallery] Loaded local children instantly:', localChildren.length)
+          }
+        }
+
+        // Then get merged data (local + admin-added) from server
+        const allProducts = await productAPI.getAll()
+        console.log('[3D Gallery] Got merged products from API:', allProducts.length)
+        
+        // Find the parent product
+        parent = allProducts.find(p => p.id === id || p._id === id)
+        console.log('[3D Gallery] Found parent:', parent)
         setParentProduct(parent || null)
         
         if (!parent) {
-          console.warn('3D Gallery - Parent product not found for id:', id)
-          setProducts([])
+          console.warn('[3D Gallery] Parent product not found for id:', id)
           return
         }
         
         // Use parent's _id (MongoDB ID) for filtering children
         const parentDbId = parent._id || parent.id
-        console.log('3D Gallery - Using parent DB ID:', parentDbId)
+        console.log('[3D Gallery] Using parent DB ID:', parentDbId)
         
-        // Filter to get only children of this parent product (NOT the parent itself)
+        // Filter to get only children of this parent product
         const children = allProducts.filter(p => {
-          const matches = (p.parentId === parentDbId || p.parentId === parent.id) && p.productType === 'child'
+          const matches = (p.parentId === parentDbId || p.parentId === parent!.id) && p.productType === 'child'
           if (matches) {
-            console.log('3D Gallery - Found child:', p.name, 'parentId:', p.parentId)
+            console.log('[3D Gallery] Found child:', p.name, 'parentId:', p.parentId)
           }
           return matches
         })
         
-        console.log('3D Gallery - Total children found:', children.length)
-        // Always show only children, even if empty - don't show parent
+        console.log('[3D Gallery] Total children found:', children.length)
+        // Always update with merged data (local + admin-added)
         setProducts(children)
+        console.log('[3D Gallery] Updated with merged children (local + admin-added)')
       } catch (error) {
         console.error('Error loading product children:', error)
-        setProducts([])
+        // Keep local products if available
+        if (products.length === 0) setProducts([])
       }
     }
 
@@ -434,9 +478,9 @@ export default function ProductGallery3D() {
     // Create a template product and open modal for admin to fill details
     const newProduct: Product = {
       id: 'new', // Identifier for new products
-      name: '',
-      price: 0,
-      description: '',
+      name: 'New Product',
+      price: 99.99,
+      description: 'Add description here',
       imageUrl: '',
       rating: 4.5,
       features: [],
@@ -490,6 +534,40 @@ export default function ProductGallery3D() {
     // Close modal immediately for better UX
     setIsEditModalOpen(false)
     
+    // Handle category-based products (no parent)
+    if (isCategory && category) {
+      console.log('Saving product to category:', category.name)
+      
+      try {
+        if (updatedProduct.id && updatedProduct.id !== 'new' && updatedProduct._id) {
+          // Update existing product
+          await productAPI.update(updatedProduct._id, {
+            ...updatedProduct,
+            category: category.id,
+            productType: 'child' as const,
+            parentId: null
+          })
+          setProducts(prev => prev.map(p => p.id === updatedProduct.id ? { ...updatedProduct, category: category.id, productType: 'child' as const } : p))
+        } else {
+          // Create new product in category
+          const created = await productAPI.create({
+            ...updatedProduct,
+            category: category.id,
+            productType: 'child' as const,
+            parentId: null
+          })
+          if (created) {
+            setProducts(prev => [...prev, created])
+          }
+        }
+      } catch (error) {
+        console.error('Error saving product:', error)
+        alert('Failed to save product')
+      }
+      return
+    }
+    
+    // Handle parent product-based children
     if (!parentProduct) {
       console.error('Cannot save child: parent product not loaded')
       alert('Error: Parent product not found. Please refresh the page.')

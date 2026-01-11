@@ -9,35 +9,57 @@ import { Link } from 'react-router-dom'
 import type { Product } from '@/types/product'
 import { Sparkles, Loader2 } from 'lucide-react'
 
+// Get local products immediately for instant display
+const getInstantProducts = (): Product[] => {
+  return productAPI.getLocalChildProducts()
+}
+
 // Global cache for homepage products
 let cachedProducts: Product[] | null = null
 
 export default function HomePage() {
-  const [products, setProducts] = useState<Product[]>(() => cachedProducts || [])
-  const [loading, setLoading] = useState(cachedProducts === null)
+  // INSTANT LOAD: Start with local products immediately (no loading state needed)
+  const [products, setProducts] = useState<Product[]>(() => {
+    // Priority 1: Use cached products if available
+    if (cachedProducts && cachedProducts.length > 0) {
+      return cachedProducts
+    }
+    // Priority 2: Use local products immediately (synchronous, instant)
+    const localProducts = getInstantProducts()
+    if (localProducts.length > 0) {
+      cachedProducts = localProducts
+      return localProducts
+    }
+    return []
+  })
+  
+  // No loading state since we have local products instantly
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    // If already cached, skip loading
-    if (cachedProducts && cachedProducts.length > 0) {
-      setProducts(cachedProducts)
-      setLoading(false)
-      return
-    }
-    loadProducts()
+    // Background fetch: Try to get latest from server (will update if server responds)
+    loadProductsFromServer()
   }, [])
 
-  async function loadProducts() {
-    setLoading(true)
+  async function loadProductsFromServer() {
     try {
+      console.log('[HomePage] Checking for admin-added products in background...')
       const data = await productAPI.getAll()
+      console.log('[HomePage] Got data from API:', data.length, 'products')
+      
       // Filter to show ONLY children products (not parents or grandchildren)
       const childProducts = data.filter(p => p.productType === 'child')
-      cachedProducts = childProducts
-      setProducts(childProducts)
+      console.log('[HomePage] Filtered child products:', childProducts.length)
+      
+      // Always update with merged products (local + admin-added)
+      if (childProducts.length > 0) {
+        console.log('[HomePage] Updating with merged products (local + admin-added)')
+        cachedProducts = childProducts
+        setProducts(childProducts)
+      }
     } catch (error) {
-      console.error('Error loading products:', error)
-    } finally {
-      setLoading(false)
+      console.log('[HomePage] Server unavailable, continuing with local products')
+      // Keep using local products - no error state needed
     }
   }
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Mail, Lock, User, Shield, Sparkles, Zap, Fingerprint } from 'lucide-react'
+import { Mail, Lock, User, Shield, Sparkles, Zap, Fingerprint, Eye, EyeOff } from 'lucide-react'
 import { useAdmin } from '@/contexts/AdminContext'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import { setGuestUser } from '@/utils/guestUser'
@@ -14,6 +14,13 @@ export default function AuthPage() {
   const [selectedForm, setSelectedForm] = useState<FormType | null>(null)
   const [isExpanded, setIsExpanded] = useState(false)
   const [showForgotPassword, setShowForgotPassword] = useState(false)
+  const [showOTPVerification, setShowOTPVerification] = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
+  const [otpCode, setOtpCode] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
   const isReturningUser = localStorage.getItem('hasVisitedAuth') === 'true'
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
@@ -31,6 +38,11 @@ export default function AuthPage() {
       localStorage.setItem('hasVisitedAuth', 'true')
     }
   }, [])
+
+  // Debug: Log OTP modal state changes
+  useEffect(() => {
+    console.log('[AUTH] showOTPVerification changed to:', showOTPVerification);
+  }, [showOTPVerification])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -108,7 +120,7 @@ export default function AuthPage() {
           body: JSON.stringify({
             email: formData.email,
             password: formData.password,
-            isAdminLogin: selectedForm === 'admin'
+            isAdmin: selectedForm === 'admin'
           })
         })
 
@@ -124,22 +136,28 @@ export default function AuthPage() {
 
         // Store user info in localStorage
         localStorage.setItem('user', JSON.stringify({
-          _id: data._id,
-          name: data.name,
-          email: data.email,
-          isAdmin: data.isAdmin,
-          isPermanentAdmin: data.isPermanentAdmin
+          _id: data.user.id,
+          name: data.user.name,
+          email: data.user.email,
+          isAdmin: data.user.isAdmin || false,
+          isPermanentAdmin: data.user.isPermanentAdmin || false
         }))
 
+        console.log('[AUTH] Login successful:', data.user);
+        console.log('[AUTH] Is admin?', data.user.isAdmin);
+        console.log('[AUTH] Selected form:', selectedForm);
+
         // Set admin context if admin login
-        if (selectedForm === 'admin' && data.isAdmin) {
+        if (selectedForm === 'admin' && data.user.isAdmin) {
+          console.log('[AUTH] Calling adminLogin()');
           adminLogin()
+          navigate('/admin')
+          return
         } else {
           adminLogout()
+          navigate('/')
+          return
         }
-
-        // Redirect immediately - no slow splash
-        navigate('/')
       }
     } catch (error) {
       console.error('Authentication error:', error)
@@ -347,6 +365,7 @@ export default function AuthPage() {
                     const emailInput = (e.target as HTMLFormElement).email as HTMLInputElement;
                     const email = emailInput.value;
                     
+                    console.log('[FORGOT PASSWORD] Sending OTP to:', email);
                     setIsLoading(true);
                     try {
                       const response = await fetch('http://localhost:5000/api/auth/send-otp', {
@@ -355,17 +374,28 @@ export default function AuthPage() {
                         body: JSON.stringify({ email })
                       });
 
+                      console.log('[FORGOT PASSWORD] Response status:', response.status);
+
                       if (!response.ok) {
                         const data = await response.json();
+                        console.log('[FORGOT PASSWORD] Error response:', data);
                         setErrorMessage(data.message || 'Failed to send OTP.');
                         setIsLoading(false);
                         return;
                       }
 
+                      const data = await response.json();
+                      console.log('[FORGOT PASSWORD] Success response:', data);
+                      console.log('[FORGOT PASSWORD] Setting showOTPVerification to true');
+                      
+                      setResetEmail(email);
                       setSuccessMessage('OTP sent successfully! Check your email.');
                       setShowForgotPassword(false);
+                      setShowOTPVerification(true);
+                      
+                      console.log('[FORGOT PASSWORD] State should be updated now');
                     } catch (error) {
-                      console.error('Error sending OTP:', error);
+                      console.error('[FORGOT PASSWORD] Error sending OTP:', error);
                       setErrorMessage('Network error. Please try again.');
                     }
                     setIsLoading(false);
@@ -394,6 +424,110 @@ export default function AuthPage() {
                       className="flex-1 px-4 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white rounded-xl text-sm font-semibold hover:shadow-lg transition-all disabled:opacity-50"
                     >
                       {isLoading ? 'Sending...' : 'Send OTP'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* OTP Verification Modal */}
+      <AnimatePresence>
+        {showOTPVerification && (
+          <>
+            <div
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 animate-fade-in"
+              onClick={() => setShowOTPVerification(false)}
+            />
+            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md animate-scale-in">
+              <div className="bg-white/70 dark:bg-black/40 backdrop-blur-xl rounded-3xl p-8 shadow-2xl ring-1 ring-white/20 dark:ring-black/20 border border-white/10 dark:border-black/20">
+                <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">Verify OTP</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">Enter the OTP sent to {resetEmail}</p>
+                <form onSubmit={async (e) => {
+                    e.preventDefault();
+                    
+                    setIsLoading(true);
+                    setErrorMessage('');
+                    try {
+                      const response = await fetch('http://localhost:5000/api/auth/reset-password', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                          email: resetEmail,
+                          otp: otpCode,
+                          newPassword: newPassword
+                        })
+                      });
+
+                      const data = await response.json();
+
+                      if (!response.ok) {
+                        setErrorMessage(data.message || 'Failed to reset password.');
+                        setIsLoading(false);
+                        return;
+                      }
+
+                      setSuccessMessage('Password reset successfully! Please login.');
+                      setShowOTPVerification(false);
+                      setOtpCode('');
+                      setNewPassword('');
+                      setResetEmail('');
+                    } catch (error) {
+                      console.error('Error resetting password:', error);
+                      setErrorMessage('Network error. Please try again.');
+                    }
+                    setIsLoading(false);
+                  }} className="space-y-4">
+                  <div className="relative">
+                    <Shield className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value)}
+                      placeholder="Enter 6-digit OTP"
+                      maxLength={6}
+                      className="w-full pl-12 pr-4 py-3 bg-white/40 dark:bg-black/30 border border-white/10 dark:border-black/20 rounded-xl text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all backdrop-blur-sm text-center text-lg tracking-widest"
+                      required
+                    />
+                  </div>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <input
+                      type={showNewPassword ? "text" : "password"}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="New password"
+                      className="w-full pl-12 pr-12 py-3 bg-white/40 dark:bg-black/30 border border-white/10 dark:border-black/20 rounded-xl text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all backdrop-blur-sm"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                    >
+                      {showNewPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowOTPVerification(false);
+                        setOtpCode('');
+                        setNewPassword('');
+                      }}
+                      className="flex-1 px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      className="flex-1 px-4 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white rounded-xl text-sm font-semibold hover:shadow-lg transition-all disabled:opacity-50"
+                    >
+                      {isLoading ? 'Resetting...' : 'Reset Password'}
                     </button>
                   </div>
                 </form>
@@ -650,14 +784,21 @@ export default function AuthPage() {
                         <div className="relative">
                           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                           <input
-                            type="password"
+                            type={showPassword ? "text" : "password"}
                             name="password"
                             value={formData.password}
                             onChange={handleChange}
-                            className={`w-full pl-10 pr-3 py-2.5 bg-white/40 dark:bg-black/30 border border-white/10 dark:border-black/20 rounded-lg text-gray-900 dark:text-gray-100 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 ${config.focusRing} transition-all backdrop-blur-sm`}
+                            className={`w-full pl-10 pr-10 py-2.5 bg-white/40 dark:bg-black/30 border border-white/10 dark:border-black/20 rounded-lg text-gray-900 dark:text-gray-100 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 ${config.focusRing} transition-all backdrop-blur-sm`}
                             placeholder="••••••••"
                             required
                           />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                          >
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
                         </div>
                       </div>
 
@@ -668,14 +809,21 @@ export default function AuthPage() {
                           <div className="relative">
                             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                             <input
-                              type="password"
+                              type={showConfirmPassword ? "text" : "password"}
                               name="confirmPassword"
                               value={formData.confirmPassword}
                               onChange={handleChange}
-                              className={`w-full pl-10 pr-3 py-2.5 bg-white/40 dark:bg-black/30 border border-white/10 dark:border-black/20 rounded-lg text-gray-900 dark:text-gray-100 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 ${config.focusRing} transition-all backdrop-blur-sm`}
+                              className={`w-full pl-10 pr-10 py-2.5 bg-white/40 dark:bg-black/30 border border-white/10 dark:border-black/20 rounded-lg text-gray-900 dark:text-gray-100 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 ${config.focusRing} transition-all backdrop-blur-sm`}
                               placeholder="••••••••"
                               required
                             />
+                            <button
+                              type="button"
+                              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                            >
+                              {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
                           </div>
                         </div>
                       )}

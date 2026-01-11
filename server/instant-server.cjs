@@ -19,6 +19,7 @@ let productsCache = []; // Memory cache - instant access
 
 // Product Schema
 const productSchema = new mongoose.Schema({
+  id: { type: String, unique: true, sparse: true },
   name: { type: String, required: true },
   price: { type: Number, required: true },
   description: { type: String, required: true },
@@ -213,15 +214,31 @@ app.get('/api/health', (req, res) => {
 });
 
 // GET all products - FROM MEMORY (instant)
-app.get('/api/products', (req, res) => {
-  console.log(`[GET] ${productsCache.length} products (from memory - instant)`);
+app.get('/api/products', async (req, res) => {
+  // If cache is empty, try to fetch directly from MongoDB
+  if (productsCache.length === 0) {
+    try {
+      console.log('[GET] Cache empty, fetching from MongoDB...');
+      
+      // Use Product model with lean() for better performance
+      const products = await Product.find({}).lean().exec();
+      productsCache = products.map(p => ({
+        ...p,
+        _id: p._id.toString()
+      }));
+      console.log(`[GET] Loaded ${productsCache.length} products from MongoDB`);
+    } catch (err) {
+      console.error('[GET] Error fetching from MongoDB:', err.message);
+    }
+  }
+  console.log(`[GET] ${productsCache.length} products (from memory)`);
   res.json(productsCache);
 });
 
 // GET single product - FROM MEMORY
 app.get('/api/products/:id', (req, res) => {
   const product = productsCache.find(p => 
-    p._id.toString() === req.params.id || p._id === req.params.id
+    (p.id && p.id === req.params.id) || p._id.toString() === req.params.id || p._id === req.params.id
   );
   if (!product) return res.status(404).json({ error: 'Not found' });
   res.json(product);
@@ -253,10 +270,11 @@ app.post('/api/products', async (req, res) => {
     const product = await Product.create(data);
     const productObj = product.toObject();
     
-    // Add to memory cache immediately with string _id
+    // Add to memory cache immediately with string _id and custom id
     const cacheObj = {
       ...productObj,
-      _id: productObj._id.toString()
+      _id: productObj._id.toString(),
+      id: productObj.id || productObj._id.toString()
     };
     productsCache.push(cacheObj);
     
@@ -277,21 +295,42 @@ app.post('/api/products', async (req, res) => {
 app.put('/api/products/:id', async (req, res) => {
   try {
     console.log('[PUT] Updating:', req.params.id);
-    const { id, _id, ...data } = req.body;
+    const { _id, ...data } = req.body;
     
-    // Update in MongoDB
-    const product = await Product.findByIdAndUpdate(req.params.id, data, { new: true });
-    if (!product) return res.status(404).json({ error: 'Not found' });
+    // Try to find by custom id first, then MongoDB _id (if valid ObjectId)
+    let product = await Product.findOne({ id: req.params.id });
     
-    // Update in memory cache with string _id
+    if (!product && mongoose.Types.ObjectId.isValid(req.params.id)) {
+      product = await Product.findById(req.params.id);
+    }
+    
+    if (!product) {
+      console.log('[PUT] Creating new product with id:', req.params.id);
+      // Create new product with custom id
+      product = new Product({ ...data, id: req.params.id });
+      await product.save();
+    } else {
+      // Update existing product
+      Object.assign(product, data);
+      await product.save();
+    }
+    
+    // Update in memory cache
     const productObj = {
       ...product.toObject(),
-      _id: product._id.toString()
+      _id: product._id.toString(),
+      id: product.id || product._id.toString()
     };
-    const index = productsCache.findIndex(p => p._id.toString() === req.params.id);
+    const index = productsCache.findIndex(p => {
+      return (p.id && p.id === productObj.id) || p._id === productObj._id || p._id === req.params.id;
+    });
     if (index !== -1) {
       productsCache[index] = productObj;
       console.log('[PUT] ✓ Updated in cache:', product.name);
+    } else {
+      // Add to cache if not found
+      productsCache.push(productObj);
+      console.log('[PUT] ✓ Added to cache:', product.name);
     }
     
     res.json(productObj);
@@ -301,22 +340,59 @@ app.put('/api/products/:id', async (req, res) => {
   }
 });
 
-// DELETE - Admin removes product
+// DELETE - Admin removes product (and all its children/grandchildren)
 app.delete('/api/products/:id', async (req, res) => {
   try {
     console.log('[DELETE] Removing:', req.params.id);
     
-    // Delete from MongoDB
-    const product = await Product.findByIdAndDelete(req.params.id);
+    // Try to find by custom id first, then MongoDB _id (if valid ObjectId)
+    let product = await Product.findOne({ id: req.params.id });
+    
+    if (!product && mongoose.Types.ObjectId.isValid(req.params.id)) {
+      product = await Product.findById(req.params.id);
+    }
+    
     if (!product) return res.status(404).json({ error: 'Not found' });
     
-    // Remove from memory cache
+    // Get the product's DB ID for finding children
+    const productDbId = product._id.toString();
+    const productCustomId = product.id;
+    
+    // Find and delete all grandchildren (color variants) of this product
+    const grandchildren = await Product.find({ 
+      $or: [
+        { parentId: productDbId },
+        { parentId: productCustomId }
+      ],
+      productType: 'grandchild'
+    });
+    
+    console.log('[DELETE] Found', grandchildren.length, 'grandchildren to delete');
+    
+    // Delete all grandchildren
+    for (const grandchild of grandchildren) {
+      await grandchild.deleteOne();
+      console.log('[DELETE] ✓ Deleted grandchild:', grandchild.name);
+    }
+    
+    // Delete the main product from MongoDB
+    await product.deleteOne();
+    
+    // Remove from memory cache (the product and all its grandchildren)
     const beforeCount = productsCache.length;
-    productsCache = productsCache.filter(p => p._id.toString() !== req.params.id);
+    productsCache = productsCache.filter(p => {
+      // Remove if it's the deleted product
+      const isDeletedProduct = (p.id && p.id === req.params.id) || p._id.toString() === req.params.id;
+      // Remove if it's a grandchild of the deleted product
+      const isGrandchild = (p.parentId === productDbId || p.parentId === productCustomId) && p.productType === 'grandchild';
+      return !isDeletedProduct && !isGrandchild;
+    });
+    
     console.log('[DELETE] ✓ Removed from DB:', product.name);
+    console.log('[DELETE] ✓ Removed', grandchildren.length, 'grandchildren');
     console.log('[DELETE] └─ Cache:', beforeCount, '→', productsCache.length, 'products');
     
-    res.json({ message: 'Deleted' });
+    res.json({ message: 'Deleted', deletedGrandchildren: grandchildren.length });
   } catch (error) {
     console.error('[DELETE] ✗ Error:', error.message);
     res.status(500).json({ error: 'Failed to delete' });
@@ -941,18 +1017,34 @@ app.delete('/api/discounts/:id', async (req, res) => {
 const reviewSchema = new mongoose.Schema({
   productId: { type: String, required: true },
   productName: String,
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  userId: String, // Changed to String for email
   userName: { type: String, required: true },
   userEmail: String,
   rating: { type: Number, required: true, min: 1, max: 5 },
-  comment: { type: String, required: true },
-  status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  comment: String, // Made optional since rating can be standalone
+  viewType: { type: String, enum: ['gallery', 'immersive', null], default: null },
+  status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'approved' }, // Auto-approve
   replied: { type: Boolean, default: false },
   replyText: String,
   repliedAt: Date
 }, { timestamps: true });
 
 const Review = mongoose.model('Review', reviewSchema);
+
+// Comment Schema
+const commentSchema = new mongoose.Schema({
+  productId: { type: String, required: true },
+  productName: String,
+  userId: String, // Email
+  userName: { type: String, required: true },
+  userEmail: String,
+  comment: { type: String, required: true },
+  viewType: { type: String, enum: ['gallery', 'immersive', null], default: null },
+  parentCommentId: String, // For nested replies
+  status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'approved' },
+}, { timestamps: true });
+
+const Comment = mongoose.model('Comment', commentSchema);
 
 // GET - Fetch all reviews (admin)
 app.get('/api/reviews', async (req, res) => {
@@ -982,7 +1074,7 @@ app.post('/api/reviews', async (req, res) => {
       isAdminNotification: true,
       title: 'New Product Review',
       message: `${review.userName} rated ${review.productName || 'a product'} ${review.rating}/5 stars`,
-      meta: review.comment.substring(0, 50),
+      meta: review.comment ? review.comment.substring(0, 50) : `${review.rating}/5 stars`,
       relatedId: review._id.toString(),
       relatedType: 'review'
     });
@@ -1045,6 +1137,130 @@ app.patch('/api/reviews/:id/reply', async (req, res) => {
   } catch (error) {
     console.error('[PATCH] Error replying to review:', error);
     res.status(400).json({ error: 'Failed to reply to review' });
+  }
+});
+
+// GET - Fetch reviews for a specific product (filtered by viewType)
+app.get('/api/reviews/product/:productId', async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const { viewType } = req.query;
+    
+    let query = { productId, status: 'approved' };
+    if (viewType) {
+      query.viewType = viewType;
+    }
+    
+    const reviews = await Review.find(query).sort({ createdAt: -1 });
+    console.log(`[GET] Found ${reviews.length} reviews for product ${productId} (viewType: ${viewType})`);
+    res.json(reviews);
+  } catch (error) {
+    console.error('[GET] Error fetching product reviews:', error);
+    res.status(500).json({ error: 'Failed to fetch reviews' });
+  }
+});
+
+// GET - Fetch user's rating for a specific product and viewType
+app.get('/api/reviews/user-rating/:productId/:userId/:viewType', async (req, res) => {
+  try {
+    const { productId, userId, viewType } = req.params;
+    
+    const review = await Review.findOne({
+      productId,
+      userId: decodeURIComponent(userId),
+      viewType
+    });
+    
+    if (review) {
+      console.log(`[GET] Found user rating: ${review.rating} for ${productId}`);
+      res.json({ rating: review.rating, reviewId: review._id });
+    } else {
+      res.json({ rating: 0 });
+    }
+  } catch (error) {
+    console.error('[GET] Error fetching user rating:', error);
+    res.status(500).json({ error: 'Failed to fetch user rating' });
+  }
+});
+
+// ========== COMMENTS ROUTES ==========
+
+// GET - Fetch comments for a specific product (filtered by viewType)
+app.get('/api/comments/product/:productId', async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const { viewType } = req.query;
+    
+    let query = { productId, status: 'approved' };
+    if (viewType) {
+      query.viewType = viewType;
+    }
+    
+    const comments = await Comment.find(query).sort({ createdAt: -1 });
+    console.log(`[GET] Found ${comments.length} comments for product ${productId} (viewType: ${viewType})`);
+    res.json(comments);
+  } catch (error) {
+    console.error('[GET] Error fetching product comments:', error);
+    res.status(500).json({ error: 'Failed to fetch comments' });
+  }
+});
+
+// POST - Submit comment
+app.post('/api/comments', async (req, res) => {
+  try {
+    const comment = await Comment.create(req.body);
+    console.log('[POST] Comment submitted for product:', comment.productId);
+    
+    // Notify admin
+    await Notification.create({
+      type: 'feedback',
+      isAdminNotification: true,
+      title: 'New Product Comment',
+      message: `${comment.userName} commented on ${comment.productName || 'a product'}`,
+      meta: comment.comment.substring(0, 50),
+      relatedId: comment._id.toString(),
+      relatedType: 'comment'
+    });
+    
+    res.status(201).json(comment);
+  } catch (error) {
+    console.error('[POST] Error submitting comment:', error);
+    res.status(400).json({ error: 'Failed to submit comment' });
+  }
+});
+
+// PATCH - Update comment status (admin)
+app.patch('/api/comments/:id/status', async (req, res) => {
+  try {
+    const { status } = req.body;
+    const comment = await Comment.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    );
+    if (!comment) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+    console.log('[PATCH] Comment status updated:', comment._id, '->', status);
+    res.json(comment);
+  } catch (error) {
+    console.error('[PATCH] Error updating comment:', error);
+    res.status(400).json({ error: 'Failed to update comment' });
+  }
+});
+
+// DELETE - Delete comment (admin)
+app.delete('/api/comments/:id', async (req, res) => {
+  try {
+    const comment = await Comment.findByIdAndDelete(req.params.id);
+    if (!comment) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+    console.log('[DELETE] Comment deleted:', comment._id);
+    res.json({ message: 'Comment deleted successfully' });
+  } catch (error) {
+    console.error('[DELETE] Error deleting comment:', error);
+    res.status(400).json({ error: 'Failed to delete comment' });
   }
 });
 
@@ -1153,11 +1369,12 @@ async function start() {
       try {
         console.log('[DB] Loading products from MongoDB...');
         
-        const db = mongoose.connection.db;
-        const productsRaw = await db.collection('products').find({}).toArray();
+        // Use mongoose Product model with lean()
+        const productsRaw = await Product.find({}).lean().exec();
         
         productsCache = productsRaw.map(p => ({
           _id: p._id.toString(),
+          id: p.id || p._id.toString(), // Include custom id
           name: p.name,
           price: p.price,
           description: p.description,
@@ -1236,5 +1453,16 @@ async function start() {
     }, 10000);
   });
 }
+
+// Error handlers
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[ERROR] Unhandled Rejection at:', promise);
+  console.error('[ERROR] Reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('[ERROR] Uncaught Exception:', error);
+  process.exit(1);
+});
 
 start();

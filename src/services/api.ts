@@ -1,11 +1,15 @@
 import type { Product, Category } from '@/types/product'
+import localProductsData from '@/data/localProducts'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+
+// Increase timeout to allow server to respond (10 seconds)
+const API_TIMEOUT = 10000
 
 // Helper to map MongoDB _id to id
 const mapProduct = (product: any): Product => ({
   ...product,
-  id: product._id || product.id,
+  id: product.id || product._id, // Prioritize custom id over MongoDB _id
   _id: product._id
 })
 
@@ -16,43 +20,97 @@ const mapCategory = (category: any): Category => ({
   _id: category._id
 })
 
+// Fetch with timeout helper
+const fetchWithTimeout = async (url: string, options?: RequestInit, timeout = API_TIMEOUT): Promise<Response> => {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeout)
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    })
+    clearTimeout(timeoutId)
+    return response
+  } catch (error) {
+    clearTimeout(timeoutId)
+    throw error
+  }
+}
+
+// Track if server is available (for caching)
+let serverAvailable: boolean | null = null
+let lastServerCheck = 0
+const SERVER_CHECK_INTERVAL = 30000 // Re-check server every 30 seconds
+
 export const productAPI = {
-  // Get all products - simple fetch with no timeout
+  // Get local products instantly (for immediate display)
+  getLocalProducts(): Product[] {
+    console.log('[API] Using local products data for instant display')
+    return localProductsData.all
+  },
+
+  // Get local child products (main display products)
+  getLocalChildProducts(): Product[] {
+    console.log('[API] Using local child products for instant display')
+    return localProductsData.children
+  },
+
+  // Get all products - use server if available, fallback to local
   async getAll(): Promise<Product[]> {
     try {
-      console.log('[API] Fetching products...')
-      const response = await fetch(`${API_URL}/products`)
+      console.log('[API] Fetching products from server...')
+      const response = await fetchWithTimeout(`${API_URL}/products`, undefined, 10000)
       if (!response.ok) throw new Error('Failed to fetch products')
-      const data = await response.json()
-      console.log(`[API] Got ${data.length} products`)
-      return data.map(mapProduct)
+      const serverData = await response.json()
+      console.log(`[API] Server returned ${serverData.length} products`)
+      const serverProducts = serverData.map(mapProduct)
+      
+      // Server has all products (seeded + admin-added), use it directly
+      console.log(`[API] Using ${serverProducts.length} products from server`)
+      return serverProducts
     } catch (error) {
-      console.error('[API] Error fetching products:', error)
-      return []
+      // Server unavailable, use local products as fallback
+      console.log('[API] Server unavailable, using local products:', error)
+      const localProducts = [...localProductsData.all]
+      console.log(`[API] Loaded ${localProducts.length} local products`)
+      return localProducts
     }
   },
 
-  // Get single product
+  // Get single product - check server first (for edited versions), then local
   async getById(id: string): Promise<Product | null> {
+    // Try to fetch from server first (might be edited version or admin-added)
     try {
-      const response = await fetch(`${API_URL}/products/${id}`)
-      if (!response.ok) throw new Error('Failed to fetch product')
-      const data = await response.json()
-      return mapProduct(data)
+      const response = await fetchWithTimeout(`${API_URL}/products/${id}`, undefined, 1000)
+      if (response.ok) {
+        const data = await response.json()
+        console.log('[API] Found product in database (edited or admin-added)')
+        return mapProduct(data)
+      }
     } catch (error) {
-      console.error('[API] Error fetching product:', error)
-      return null
+      // Server not available or product not in DB, continue to local
     }
+
+    // Fall back to local products
+    const localProduct = localProductsData.all.find(p => p.id === id || p._id === id)
+    if (localProduct) {
+      console.log('[API] Using local version of product')
+      return localProduct
+    }
+
+    console.log('[API] Product not found')
+    return null
   },
 
   // Create product
-  async create(productData: Partial<Product>): Promise<Product | null> {
+  async create(productData: Partial<Product>, adminEmail?: string): Promise<Product | null> {
     try {
       console.log('[API] Creating product with data:', productData)
       const response = await fetch(`${API_URL}/products`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(productData),
+        body: JSON.stringify({ ...productData, adminEmail }),
       })
       if (!response.ok) {
         const err = await response.json()
@@ -69,14 +127,49 @@ export const productAPI = {
     }
   },
 
-  // Update product
-  async update(id: string, productData: Partial<Product>): Promise<Product | null> {
+  // Update product - works for both local and server products
+  async update(id: string, productData: Partial<Product>, adminEmail?: string): Promise<Product | null> {
     try {
       console.log('[API] Updating product:', id)
+      
+      // Check if this is a local product being edited
+      const isLocalProduct = id.startsWith('local-')
+      
+      if (isLocalProduct) {
+        // For local products, we need to save them to the database
+        // First check if it already exists in DB
+        try {
+          const existing = await fetch(`${API_URL}/products/${id}`)
+          if (existing.ok) {
+            // Already in DB, update it
+            const response = await fetch(`${API_URL}/products/${id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ...productData, id, adminEmail }),
+            })
+            if (!response.ok) throw new Error('Failed to update')
+            const data = await response.json()
+            return mapProduct(data)
+          }
+        } catch (e) {
+          // Not in DB, create it
+          console.log('[API] Local product not in DB, creating...')
+          const response = await fetch(`${API_URL}/products`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...productData, id, adminEmail }),
+          })
+          if (!response.ok) throw new Error('Failed to create')
+          const data = await response.json()
+          return mapProduct(data)
+        }
+      }
+      
+      // For regular products, just update normally
       const response = await fetch(`${API_URL}/products/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(productData),
+        body: JSON.stringify({ ...productData, adminEmail }),
       })
       if (!response.ok) throw new Error('Failed to update')
       const data = await response.json()
@@ -88,10 +181,13 @@ export const productAPI = {
   },
 
   // Delete product
-  async delete(id: string): Promise<boolean> {
+  async delete(id: string, adminEmail?: string): Promise<boolean> {
     try {
       console.log('[API] Deleting product:', id)
-      const response = await fetch(`${API_URL}/products/${id}`, {
+      const url = adminEmail 
+        ? `${API_URL}/products/${id}?adminEmail=${encodeURIComponent(adminEmail)}`
+        : `${API_URL}/products/${id}`
+      const response = await fetch(url, {
         method: 'DELETE',
       })
       return response.ok
@@ -620,6 +716,42 @@ export const logsAPI = {
     } catch (error) {
       console.error('Error logging action:', error)
       return null
+    }
+  }
+}
+export const siteSettingsAPI = {
+  // Get site settings
+  async getSettings(): Promise<any> {
+    try {
+      const response = await fetch(`${API_URL}/site-settings`)
+      if (!response.ok) throw new Error('Failed to fetch site settings')
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching site settings:', error)
+      return null
+    }
+  },
+
+  // Freeze/unfreeze website
+  async updateFreeze(data: {
+    isFrozen: boolean
+    freezeMessage?: string
+    freezeDuration?: number
+    userId: string
+    userName: string
+    userEmail: string
+  }): Promise<any> {
+    try {
+      const response = await fetch(`${API_URL}/site-settings/freeze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      if (!response.ok) throw new Error('Failed to update freeze settings')
+      return await response.json()
+    } catch (error) {
+      console.error('Error updating freeze settings:', error)
+      throw error
     }
   }
 }

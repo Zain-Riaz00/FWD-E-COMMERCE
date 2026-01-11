@@ -284,12 +284,12 @@ export default function EditProductModal({ isOpen, onClose, product, onSave, cat
                       <div className="relative">
                         <Upload className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-cyan-300/60" />
                         <input
-                          type="url"
+                          type="text"
                           name="imageUrl"
                           value={formData.imageUrl}
                           onChange={handleImageUrlChange}
                           className="w-full pl-9 pr-3 py-1.5 text-sm bg-black/40 border border-cyan-400/30 rounded-lg text-cyan-100 placeholder-cyan-300/40 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-all"
-                          placeholder="https://..."
+                          placeholder="/products/image.png or https://..."
                         />
                       </div>
                     )}

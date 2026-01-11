@@ -89,25 +89,36 @@ export default function AdminPanel() {
   const handleAddProduct = async () => {
     if (newProduct.name && newProduct.price) {
       try {
+        // Generate a unique ID for the product
+        const productId = `admin-product-${Date.now()}`;
+        
         const response = await fetch('http://localhost:5000/api/products', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            id: productId,
             name: newProduct.name,
             price: newProduct.price,
             description: newProduct.description || '',
             category: newProduct.category || 'Uncategorized',
             stock: newProduct.stock || 0,
             images: newProduct.images || [],
-            colors: newProduct.colors || []
+            colors: newProduct.colors || [],
+            productType: 'parent', // Mark as parent product
+            parentId: null, // Top-level product
+            imageUrl: newProduct.images?.[0] || '/products/default.png'
           })
         })
         
         if (response.ok) {
           const created = await response.json()
+          console.log('Product created successfully:', created)
           setProducts([...products, created])
           setNewProduct({ name: '', price: 0, description: '', category: '', stock: 0, images: [], colors: [] })
           setIsAddingProduct(false)
+        } else {
+          const error = await response.json()
+          console.error('Failed to create product:', error)
         }
       } catch (error) {
         console.error('Error adding product:', error)

@@ -30,9 +30,15 @@ export function ColorVariantModal({ isOpen, onClose, childProduct }: ColorVarian
       setLoading(true)
       try {
         const allProducts = await productAPI.getAll()
+        console.log('[ColorVariantModal] Child product:', childProduct.name, 'ID:', childProduct.id, '_ID:', childProduct._id)
+        console.log('[ColorVariantModal] Total products:', allProducts.length)
+        
+        // Check both childProduct.id and childProduct._id for matching
         const grandchildren = allProducts.filter(
-          p => p.parentId === childProduct.id && p.productType === 'grandchild'
+          p => (p.parentId === childProduct.id || p.parentId === childProduct._id) && p.productType === 'grandchild'
         )
+        
+        console.log('[ColorVariantModal] Found grandchildren:', grandchildren.length, grandchildren.map(g => g.name))
         
         if (grandchildren.length > 0) {
           setColorVariants(grandchildren)
@@ -175,22 +181,29 @@ export function ColorVariantModal({ isOpen, onClose, childProduct }: ColorVarian
                     </div>
 
                     {/* Rating */}
-                    {currentVariant.rating && (
-                      <div className="flex items-center gap-2">
-                        <div className="flex text-yellow-400">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <svg
-                              key={i}
-                              className={`h-5 w-5 ${i < Math.floor(currentVariant.rating || 0) ? 'fill-current' : 'fill-none stroke-current'}`}
-                              viewBox="0 0 24 24"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                            </svg>
-                          ))}
+                    {(() => {
+                      const averageRating = currentVariant.reviews && currentVariant.reviews.length > 0
+                        ? currentVariant.reviews.reduce((sum, review) => sum + review.rating, 0) / currentVariant.reviews.length
+                        : 0
+                      const reviewCount = currentVariant.reviews?.length || 0
+                      
+                      return reviewCount > 0 ? (
+                        <div className="flex items-center gap-2">
+                          <div className="flex text-yellow-400">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <svg
+                                key={i}
+                                className={`h-5 w-5 ${i < Math.floor(averageRating) ? 'fill-current' : 'fill-none stroke-current'}`}
+                                viewBox="0 0 24 24"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                              </svg>
+                            ))}
+                          </div>
+                          <span className="text-sm text-cyan-200/70">{averageRating.toFixed(1)}</span>
                         </div>
-                        <span className="text-sm text-cyan-200/70">{currentVariant.rating.toFixed(1)}</span>
-                      </div>
-                    )}
+                      ) : null
+                    })()}
 
                     {/* Description */}
                     <div>

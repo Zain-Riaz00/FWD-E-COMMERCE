@@ -6,7 +6,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useCart } from '@/context/CartContext'
 import { useAdmin } from '@/contexts/AdminContext'
 import type { Product, ColorVariant, Review } from '@/types/product'
-import { productAPI } from '@/services/api'
+import { productAPI, reviewAPI } from '@/services/api'
 // Helper to calculate average rating
 function getAverageRating(reviews: Review[]): number {
   if (!reviews.length) return 0;
@@ -212,28 +212,23 @@ export default function ProductDetailImmersive() {
   // Mark as used to prevent TypeScript errors - will be used in future review form
   void setReviewUser; void setReviewRating; void setReviewText;
   
-  // Load reviews from localStorage only (no API)
+  // Load reviews from database
   useEffect(() => {
     if (!id) return;
-    const reviewsKey = `reviews-${id}-immersive`;
-    const stored = localStorage.getItem(reviewsKey);
-    if (stored) {
+    
+    const loadReviews = async () => {
       try {
-        setReviews(JSON.parse(stored));
-      } catch {
+        const fetchedReviews = await reviewAPI.getByProduct(id, 'immersive');
+        console.log('[Immersive] Loaded reviews:', fetchedReviews);
+        setReviews(fetchedReviews || []);
+      } catch (error) {
+        console.error('[Immersive] Error loading reviews:', error);
         setReviews([]);
       }
-    } else {
-      setReviews([]);
-    }
+    };
+    
+    loadReviews();
   }, [id]);
-
-  // Save reviews to localStorage when they change
-  useEffect(() => {
-    if (!id || reviews.length === 0) return;
-    const reviewsKey = `reviews-${id}-immersive`;
-    localStorage.setItem(reviewsKey, JSON.stringify(reviews));
-  }, [reviews, id]);
   
   // Add review handler
   // @ts-ignore - function reserved for future use
@@ -262,7 +257,20 @@ export default function ProductDetailImmersive() {
     
     const loadColorVariants = async () => {
       try {
-        // Fetch all products from database
+        // Check cache first
+        const cacheKey = `immersive-product-${id}`;
+        const cached = sessionStorage.getItem(cacheKey);
+        
+        if (cached) {
+          console.log('[Immersive] Using cached product data');
+          const cachedData = JSON.parse(cached);
+          setProductData(cachedData.productData);
+          setColorVariants(cachedData.colorVariants);
+          return; // Use cached data, don't fetch from server
+        }
+        
+        // Fetch all products from database if not cached
+        console.log('[Immersive] Fetching from server');
         const allProducts = await productAPI.getAll()
         console.log('Immersive - URL id:', id)
         
@@ -271,7 +279,7 @@ export default function ProductDetailImmersive() {
         console.log('Immersive - Found parent (child):', parent)
         
         if (parent) {
-          setProductData({
+          const productDataObj = {
             id: parent.id,
             _id: parent._id,
             name: parent.name || 'Product',
@@ -281,7 +289,8 @@ export default function ProductDetailImmersive() {
             rating: parent.rating || 4.5,
             features: [],
             colorVariants: [],
-          })
+          };
+          setProductData(productDataObj);
           
           // Use parent's _id (MongoDB ID) for filtering grandchildren
           const parentDbId = parent._id || parent.id
@@ -298,18 +307,37 @@ export default function ProductDetailImmersive() {
           
           console.log('Immersive - Total grandchildren found:', grandchildren.length)
           
+          let variants: ColorVariant[] = [];
           if (grandchildren.length > 0) {
             // Convert grandchildren products to ColorVariant format for display
-            const variants: ColorVariant[] = grandchildren.map(gc => ({
+            variants = grandchildren.map(gc => ({
               color: gc.name,
               name: gc.name,
               imageUrl: gc.imageUrl,
               price: gc.price
             }))
-            setColorVariants(variants)
           } else {
-            // No grandchildren found - show EMPTY (don't show child product itself)
-            setColorVariants([])
+            // No grandchildren - show the parent product itself as a single variant
+            console.log('Immersive - No grandchildren, using parent product as single variant')
+            variants = [{
+              color: parent.name,
+              name: parent.name,
+              imageUrl: parent.imageUrl,
+              price: parent.price
+            }]
+          }
+          
+          setColorVariants(variants);
+          
+          // Cache only the minimal data needed (NOT the entire allProducts array)
+          try {
+            sessionStorage.setItem(cacheKey, JSON.stringify({
+              productData: productDataObj,
+              colorVariants: variants
+            }));
+          } catch (storageError) {
+            // Ignore storage quota errors - continue without caching
+            console.log('[Immersive] Could not cache data (quota exceeded)');
           }
         }
       } catch (error) {
